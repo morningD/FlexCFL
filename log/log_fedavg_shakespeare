@@ -1,0 +1,100 @@
+Arguments:
+	       batch_size : 10
+	clients_per_round : 20
+	          dataset : shakespeare
+	     drop_percent : 0.0
+	       eval_every : 1
+	    learning_rate : 0.01
+	            model : stacked_lstm
+	     model_params : (80, 80, 256)
+	               mu : 0
+	       num_epochs : 20
+	        num_iters : 1
+	       num_rounds : 200
+	        optimizer : fedavg
+	             seed : 0
+Using Federated avg to Train
+Parsing Inputs...
+
+=========================Options=============================
+-max_depth                  10000
+-min_bytes                  0
+-min_peak_bytes             0
+-min_residual_bytes         0
+-min_output_bytes           0
+-min_micros                 0
+-min_accelerator_micros     0
+-min_cpu_micros             0
+-min_params                 0
+-min_float_ops              1
+-min_occurrence             0
+-step                       -1
+-order_by                   float_ops
+-account_type_regexes       .*
+-start_name_regexes         .*
+-trim_name_regexes          
+-show_name_regexes          .*
+-hide_name_regexes          
+-account_displayed_op_only  true
+-select                     float_ops
+-output                     stdout:
+
+==================Model Analysis Report======================
+
+Doc:
+scope: The nodes in the model graph are organized by their names, which is hierarchical like filesystem.
+flops: Number of float operations. Note: Please read the implementation for the math behind it.
+
+Profile:
+node name | # float_ops
+_TFProfRoot (--/2.43m flops)
+  rnn/multi_rnn_cell/cell_1/basic_lstm_cell/kernel/Initializer/random_uniform (524.29k/1.05m flops)
+    rnn/multi_rnn_cell/cell_1/basic_lstm_cell/kernel/Initializer/random_uniform/mul (524.29k/524.29k flops)
+    rnn/multi_rnn_cell/cell_1/basic_lstm_cell/kernel/Initializer/random_uniform/sub (1/1 flops)
+  rnn/multi_rnn_cell/cell_0/basic_lstm_cell/kernel/Initializer/random_uniform (270.34k/540.67k flops)
+    rnn/multi_rnn_cell/cell_0/basic_lstm_cell/kernel/Initializer/random_uniform/mul (270.34k/270.34k flops)
+    rnn/multi_rnn_cell/cell_0/basic_lstm_cell/kernel/Initializer/random_uniform/sub (1/1 flops)
+  gradients/rnn/while/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/MatMul/Enter_grad/Add (524.29k/524.29k flops)
+  gradients/rnn/while/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/MatMul/Enter_grad/Add (270.34k/270.34k flops)
+  dense/kernel/Initializer/random_uniform (20.48k/40.96k flops)
+    dense/kernel/Initializer/random_uniform/mul (20.48k/20.48k flops)
+    dense/kernel/Initializer/random_uniform/sub (1/1 flops)
+  embedding/Initializer/random_uniform (640/1.28k flops)
+    embedding/Initializer/random_uniform/mul (640/640 flops)
+    embedding/Initializer/random_uniform/sub (1/1 flops)
+  gradients/rnn/while/rnn/multi_rnn_cell/cell_0/basic_lstm_cell/BiasAdd/Enter_grad/Add (1.02k/1.02k flops)
+  gradients/rnn/while/rnn/multi_rnn_cell/cell_1/basic_lstm_cell/BiasAdd/Enter_grad/Add (1.02k/1.02k flops)
+  gradients/rnn/while/TensorArrayReadV3/Enter_1_grad/Add (1/1 flops)
+  gradients/Sub (1/1 flops)
+  gradients/Mean_grad/Maximum (1/1 flops)
+  rnn/Maximum (1/1 flops)
+  rnn/Minimum (1/1 flops)
+  gradients/GreaterEqual (1/1 flops)
+  gradients/Add (1/1 flops)
+  rnn/while/Less (1/1 flops)
+  rnn/while/Less_1 (1/1 flops)
+  softmax_cross_entropy_with_logits/Sub (1/1 flops)
+  softmax_cross_entropy_with_logits/Sub_1 (1/1 flops)
+  softmax_cross_entropy_with_logits/Sub_2 (1/1 flops)
+
+======================End of Report==========================
+143 Clients in Total
+Training with 20 workers ---
+At round 0 accuracy: 0.007953458256424134
+At round 0 training accuracy: 0.00823684993073503
+At round 0 training loss: 4.3822670945567195
+At round 1 accuracy: 0.1863215980362786
+At round 1 training accuracy: 0.18629012956054822
+At round 1 training loss: 3.12767057288221
+At round 2 accuracy: 0.21592237888612928
+At round 2 training accuracy: 0.2157754896295956
+At round 2 training loss: 2.9763316273303944
+At round 3 accuracy: 0.2509639823342385
+At round 3 training accuracy: 0.25206163010814037
+At round 3 training loss: 2.7567092790756247
+At round 4 accuracy: 0.2989746513718024
+At round 4 training accuracy: 0.30187438501652447
+At round 4 training loss: 2.587481233201645
+At round 5 accuracy: 0.3271548266764595
+At round 5 training accuracy: 0.32880915022882823
+At round 5 training loss: 2.4191394312921277

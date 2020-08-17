@@ -14,13 +14,13 @@ class Group(object):
         self.id = gid # integer
         self.clients = OrderedDict() # {cid: Client()}
         self.client_ids = [] # list of client ids
-        self.prime_client = None
+        #self.prime_client = None
         self.group_epochs = 1
         self.num_epochs = 5
         self.model_len = 0
         self.num_samples = []
-        self.max_clients = 1000 # Init to a large number
-        self.min_clients = 2
+        self.max_clients = 1e4 # Init to a large number
+        self.min_clients = 0
 
         #debug
         self.grads = None
@@ -49,8 +49,8 @@ class Group(object):
         self.client_ids.clear()
         self.num_samples.clear()
         # reset the max_clients
-        self.max_clients = 1000
-        self.min_clients = 1
+        self.max_clients = 1e4
+        self.min_clients = 0
 
 
     def get_client_ids(self):
@@ -62,8 +62,8 @@ class Group(object):
     """ Set the prime client. You should freeze this group before train """
     def freeze(self):
         # TODO: apply some strategy
-        self.prime_client = self.clients[random.choice(self.client_ids)]
-        self.model_len = process_grad(self.prime_client.model.get_params()).size # should be 784*10+10
+        #self.prime_client = self.clients[random.choice(self.client_ids)]
+        self.model_len = process_grad(self.latest_model).size # should be 784*10+10
         self.num_samples = [c.num_samples for c in self.clients.values()]
         if len(self.client_ids) < self.min_clients:
             print("Warning: This group does not meet the minimum client requirements.")

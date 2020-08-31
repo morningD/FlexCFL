@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 class CSVWriter(object):
-    def __init__(self, csv_filename, csv_dir, gids):
+    def __init__(self, csv_filename, csv_dir, gids=None):
         csv_path = os.path.join(csv_dir, csv_filename)
         if not os.path.exists(csv_dir):
             os.makedirs(csv_dir)
@@ -14,6 +14,12 @@ class CSVWriter(object):
         self.csv_f.write(header)
     
     def make_header(self, gids):
+        is_group = True
+        if gids == None:
+            # fedavg or fedprox does not have group
+            # To simplify, we assume they have ONE group and gid is 0
+            gids = [0]
+            is_group = False
         header = '\t'
         for gid in gids:
             for _ in range(4):
@@ -24,8 +30,9 @@ class CSVWriter(object):
         for _ in gids:
             header += 'TestAcc\tTrainAcc\tTrainLoss\tNumClient\t'
             header += self.group_delimiter
-        header += 'MeanTestAcc\tMeanTrainAcc\t'
-        header += 'GroupDiff\t'
+        if is_group:
+            header += 'MeanTestAcc\tMeanTrainAcc\t'
+            header += 'GroupDiff\t'
         return header
 
     def write_stats(self, round, gid, test_acc, train_acc, train_loss, num_client):
@@ -49,3 +56,9 @@ class CSVWriter(object):
         for diff in diffs:
             info += '{:.4f}\t'.format(diff)
         self.csv_f.write(info)
+
+    def close(self):
+        self.csv_f.close()
+
+    def __del__(self):
+        self.close()

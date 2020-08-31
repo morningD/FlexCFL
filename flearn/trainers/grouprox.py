@@ -10,6 +10,9 @@ from flearn.models.client import Client
 from flearn.utils.model_utils import Metrics
 from flearn.models.group import Group
 import random
+from utils.export_csv import CSVWriter
+from sklearn.cluster import KMeans
+from collections import Counter
 
 """ This Server class is customized for Group Prox """
 class Server(BaseFedarated):
@@ -18,11 +21,22 @@ class Server(BaseFedarated):
         self.group_list = [] # list of Group() instance
         self.group_ids = [] # list of group id
         self.num_group = params['num_group']
-        self.inner_opt = tf.train.GradientDescentOptimizer(params['learning_rate'])
+        self.prox = params['proximal']
+        self.group_min_clients = params['min_clients']
+        self.allow_empty = params['allow_empty']
+        self.evenly = params['evenly']
+        self.sklearn_seed = params['seed']
+        self.agg_lr = params['agg_lr']
+        if self.prox == True:
+            self.inner_opt = PerturbedGradientDescent(params['learning_rate'], params['mu'])
+        else:
+            self.inner_opt = tf.train.GradientDescentOptimizer(params['learning_rate'])
         super(Server, self).__init__(params, learner, dataset)
         self.latest_model = self.client_model.get_params() # The global model
+
         self.create_groups()
-        self.group_min_clients = params['min_clients']
+
+        self.writer = CSVWriter(params['export_filename'], 'results', self.group_ids)
 
     """
     initialize the Group() instants
@@ -70,7 +84,7 @@ class Server(BaseFedarated):
             g.latest_model = self.pre_train_client(c)
         """
         # Strategy #2: Pre-train, then clustering the directions of clients' weights
-        alpha = 10
+        alpha = 20
         selected_clients = random.choices(self.clients, k=self.num_group*alpha)
         cluster = self.clustering_clients(selected_clients)
         # Init groups accroding to the clustering results
@@ -81,7 +95,36 @@ class Server(BaseFedarated):
         return
 
     """ Clustering clients by K Means"""
-    def clustering_clients(self, clients, n_clusters=None, max_iter=100):
+    def clustering_clients(self, clients, n_clusters=None, max_iter=20):
+        if n_clusters is None: n_clusters = self.num_group
+        # Pre-train these clients first
+        csolns = {}
+        for c in clients:
+            csolns[c] = self.pre_train_client(c)
+        diffs = [self.measure_difference(csolns[clients[0]], csolns[c]) for c in clients]
+        diffs = np.array(diffs).reshape(len(clients), 1)
+        kmeans = KMeans(n_clusters, random_state=self.sklearn_seed, max_iter=max_iter).fit(diffs)
+        print('Clustering Results:', Counter(kmeans.labels_))
+
+        cluster = {} # {Cluster ID: (cm, [c1, c2, ...])}
+        cluster2clients = [[] for _ in range(n_clusters)] # [[c1, c2,...], [c3, c4,...], ...]
+        for idx, cluster_id in enumerate(kmeans.labels_):
+            #print(idx, cluster_id, len(cluster2clients), n_clusters) # debug
+            cluster2clients[cluster_id].append(clients[idx])
+        for cluster_id, client_list in enumerate(cluster2clients):
+            # calculate the means of cluster
+            # All client have equal weight
+            weighted_csolns = [(1, csolns[c]) for c in client_list]
+            if weighted_csolns:
+                # Update the cluster means
+                cluster[cluster_id] = (self.aggregate(weighted_csolns), client_list)
+            else:
+                print("Error, cluster is empty")
+
+        return cluster
+
+    """ Will be deprecated
+    def clustering_clients(self, clients, n_clusters=None, max_iter=20):
         if n_clusters is None: n_clusters = self.num_group
         # Pre-train these clients first
         csolns = {}
@@ -116,6 +159,7 @@ class Server(BaseFedarated):
             if change_cnt == 0:
                 print("Clustering iteration:", iter)
                 return cluster
+            
             # re-calculate the means of cluster
             for id, tup in cluster.items():
                 # All client have equal weight
@@ -128,51 +172,27 @@ class Server(BaseFedarated):
 
         # Return if reach the max_iter
         return cluster
-
-    """ Allocate selected clients to each group """
     """
-    def allocate_selected_clients(self, selected_clients):
-        # Clear all group
-        for g in self.group_list: g.clear_clients()
-
-        # Calculate the number clients in each group
-        selected_clients_num = len(selected_clients)
-        group_num = len(self.group_list)
-        per_group_num = np.array([selected_clients_num // group_num] * group_num)
-        remain = selected_clients_num - sum(per_group_num)
-        random_groups = random.sample(range(group_num), remain)
-        per_group_num[random_groups] += 1 # plus the remain
-
-        for g, max in zip(self.group_list, per_group_num):
-            g.max_clients = max
-
-        # Calculate the diff between ALL clients and ALL groups
-        diff_tuples = []
-        for g in self.group_list:
-            for c in selected_clients:
-                # !!!!!!!!!!!!!!!!  pretrain NEED
-                diff = self.measure_difference(c.get_params(), g.latest_model)
-                diff_tuples.append((g, diff))
-
-        # Sort ascending by the diff
-        diff_tuples = sorted(diff_tuples, key=lambda tup: tup[1])
-
-        for (g, diff) in diff_tuples:
-            if not g.is_full():
-                g.add_client
-        return
-    """
+    
 
     def measure_group_diffs(self):
-        diffs = []
-        for g in self.group_list:
-            diff = self.measure_difference(self.group_list[0].latest_model, g.latest_model)
-            diffs.append(diff)
+        diffs = np.empty(len(self.group_list))
+        for idx, g in enumerate(self.group_list):
+            # direction
+            #diff = self.measure_difference(self.group_list[0].latest_model, g.latest_model)
+            # square root
+            model_a = process_grad(self.group_list[0].latest_model)
+            model_b = process_grad(g.latest_model)
+            diff = np.sum((model_a-model_b)**2)**0.5
+            diffs[idx] = diff
         return diffs
 
     """ Pre-train the client 1 epoch and return weights """
     def pre_train_client(self, client):
         start_model = client.get_params() # Backup the start model
+        if self.prox == True:
+            # Set the value of vstart to be the same as the client model to remove the proximal term
+            self.inner_opt.set_params(self.client_model.get_params(), self.client_model)
         soln, stat = client.solve_inner() # Pre-train the client only one epoch
         ws = soln[1] # weights of model
         self.client_model.set_params(start_model) # Recovery the model
@@ -185,7 +205,7 @@ class Server(BaseFedarated):
     def group_test(self):
         backup_model = self.latest_model # Backup the global model
         results = []
-        for g in self.get_not_empty_groups():
+        for g in self.group_list:
             c_list = []
             for c in self.clients:
                 if c.group == g:
@@ -205,7 +225,7 @@ class Server(BaseFedarated):
     def group_train_error_and_loss(self):
         backup_model = self.latest_model # Backup the global model
         results = []
-        for g in self.get_not_empty_groups():
+        for g in self.group_list:
             c_list = []
             for c in self.clients:
                 if c.group == g:
@@ -247,7 +267,7 @@ class Server(BaseFedarated):
                     self.client_cold_start(c)
             """
             # Reshcedule selected clients to groups
-            self.reschedule_groups(selected_clients, allow_empty=True, evenly=False)
+            self.reschedule_groups(selected_clients, self.allow_empty, self.evenly)
 
             # Get not empty groups
             handling_groups = self.get_not_empty_groups()
@@ -261,8 +281,6 @@ class Server(BaseFedarated):
             # Freeze these groups before training
             for g in handling_groups:
                 g.freeze()
-            
-            print("The groups difference are:", self.measure_group_diffs())
 
             if i % self.eval_every == 0:
                 """
@@ -272,20 +290,34 @@ class Server(BaseFedarated):
                 """
                 group_stats = self.group_test()
                 group_stats_train = self.group_train_error_and_loss()
-                mean_test_acc, mean_train_acc = 0, 0
+                test_tp, test_tot = 0, 0
+                train_tp, train_tot = 0, 0
                 for stats, stats_train in zip(group_stats, group_stats_train):
                     tqdm.write('Group {}'.format(stats[1].id))
+                    test_tp += np.sum(stats[3])
+                    test_tot += np.sum(stats[2])
                     test_acc = np.sum(stats[3])*1.0/np.sum(stats[2])
                     tqdm.write('At round {} accuracy: {}'.format(i, test_acc))  # testing accuracy
+                    train_tp += np.sum(stats_train[3])
+                    train_tot += np.sum(stats_train[2])
                     train_acc = np.sum(stats_train[3])*1.0/np.sum(stats_train[2])
                     tqdm.write('At round {} training accuracy: {}'.format(i, train_acc)) # train accuracy
                     train_loss = np.dot(stats_train[4], stats_train[2])*1.0/np.sum(stats_train[2])
                     tqdm.write('At round {} training loss: {}'.format(i, train_loss))
                     
-                    mean_test_acc += test_acc*(1.0/len(handling_groups))
-                    mean_train_acc += train_acc*(1.0/len(handling_groups))
+                    mean_test_acc = test_tp*1.0 / test_tot
+                    mean_train_acc = train_tp*1.0 / train_tot
+                    
+                    # Write results to csv file
+                    self.writer.write_stats(i, stats[1].id, test_acc, 
+                        train_acc, train_loss, len(stats[1].get_client_ids()))
+                
+                self.writer.write_means(mean_test_acc, mean_train_acc)
                 print('At round {} mean test accuracy: {} mean train accuracy: {}'.format(
                     i, mean_test_acc, mean_train_acc))
+                diffs = self.measure_group_diffs()
+                print("The groups difference are:", diffs)
+                self.writer.write_diffs(diffs)
 
             # Broadcast the global model to clients(groups)
             # self.client_model.set_params(self.latest_model)
@@ -296,8 +328,9 @@ class Server(BaseFedarated):
                 print("Begin group {:2d} training".format(g.get_group_id()))
                 # Each group train group_epochs round
                 for _ in range(g.group_epochs):
-                    # Update the optimizer, the vstar is latest_model of this group
-                    #self.inner_opt.set_params(g.latest_model, self.client_model)
+                    if self.prox == True:
+                        # Update the optimizer, the vstar is latest_model of this group
+                        self.inner_opt.set_params(g.latest_model, self.client_model)
                     # Set the global the group model
                     self.client_model.set_params(g.latest_model)
                     # Begin group training
@@ -316,8 +349,9 @@ class Server(BaseFedarated):
             # Aggregate groups model and update the global (latest) model 
             #self.latest_model = self.aggregate_groups(self.group_list)
             # Aggregate groups model and update the global (latest) model 
-            self.aggregate_groups(self.group_list)
-
+            self.aggregate_groups(self.group_list, agg_lr=self.agg_lr)
+        # Close the writer and end the training
+        self.writer.close()
 
     """  
     def aggregate_groups(self, groups):
@@ -330,14 +364,20 @@ class Server(BaseFedarated):
         return self.aggregate(gsolns)
 
     """
-    def aggregate_groups(self, groups):
+    def aggregate_groups(self, groups, agg_lr):
         gsolns = [(sum(g.num_samples), g.latest_model) for g in groups]
         group_num = len(gsolns)
+        # Calculate the scale of group models
+        gscale = [0]*group_num
+        for i, (_, gsoln) in enumerate(gsolns):
+            for v in gsoln:
+                gscale[i] += np.sum(v.astype(np.float64)**2)
+            gscale[i] = gscale[i]**0.5
         # Aggregate the models of each group separately
         for idx, g in enumerate(groups):
             base = [0]*len(gsolns[idx][1])
-            weights = [.5]*group_num
-            weights[idx] = group_num
+            weights = [agg_lr*(1.0/scale) for scale in gscale]
+            weights[idx] = 1 # The weight of the main group is 1
             total_weights = sum(weights)
             for j, (_, gsoln) in enumerate(gsolns):
                 for k, v in enumerate(gsoln):

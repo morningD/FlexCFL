@@ -16,7 +16,7 @@ class Group(object):
         self.client_ids = [] # list of client ids
         #self.prime_client = None
         self.group_epochs = 1
-        self.num_epochs = 5
+        self.num_epochs = 20
         self.model_len = 0
         self.num_samples = []
         self.max_clients = 1e4 # Init to a large number

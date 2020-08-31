@@ -102,7 +102,7 @@ class Model(object):
             data: dict of the form {'x': [list], 'y': [list]}
         '''
         with self.graph.as_default():
-            tot_correct, loss = self.sess.run([self.eval_metric_ops, self.loss], 
+            tot_correct, loss = self.sess.run([self.eval_metric_ops, self.loss],
                 feed_dict={self.features: data['x'], self.labels: data['y']})
         return tot_correct, loss
     

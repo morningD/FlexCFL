@@ -20,7 +20,7 @@ class BaseFedarated(object):
         self.latest_model = self.client_model.get_params()
 
         # initialize system metrics
-        #self.metrics = Metrics(self.clients, params)
+        self.metrics = Metrics(self.clients, params)
 
     def __del__(self):
         self.client_model.close()

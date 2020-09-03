@@ -9,12 +9,12 @@ import random
 
 class Group(object):
     def __init__(self, gid, model=None):
+        self.client_model = model
         self.latest_model = model.get_params()
-        self.temp_model = model.get_params()
+        self.latest_update = model.get_params()
         self.id = gid # integer
         self.clients = OrderedDict() # {cid: Client()}
         self.client_ids = [] # list of client ids
-        #self.prime_client = None
         self.group_epochs = 1
         self.num_epochs = 20
         self.model_len = 0
@@ -107,16 +107,24 @@ class Group(object):
         """
 
         """ Training """
+        # Backup the training model first, however we just make it logically correct,
+        # Actually ,the trainig procedure didn't refresh the training model
+        start_model = self.client_model.get_params()
+
         csolns = [] # buffer for receiving client solutions
-        csolns_dict = {} # dict buffer for send back solutions to server
+        cupdates_dict = {} # dict buffer for send back clients' updates to server
         for c in self.clients.values():
             # communicate the latest group model
             c.set_params(self.latest_model)
             soln, stats = c.solve_inner(num_epochs=self.num_epochs, batch_size=self.batch_size)
             csolns.append(soln)
-            csolns_dict[c] = soln[1] # {Client:weights}
-        self.latest_model = self.aggregate(csolns)
+            cupdates_dict[c] = [w1-w0 for w0, w1 in zip(self.latest_update, soln[1])] # {Client:updates}
+        new_model = self.aggregate(csolns)
+        self.latest_update = [w1-w0 for w0, w1 in zip(self.latest_model, new_model)]
+        self.latest_model = new_model
 
-        return csolns_dict # return {Client:weights} to server
+        self.client_model.set_params(start_model) # Recovery the training model
+
+        return cupdates_dict # return {Client:updates} to server
 
 

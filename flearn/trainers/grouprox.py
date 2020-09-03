@@ -12,6 +12,7 @@ from flearn.models.group import Group
 import random
 from utils.export_csv import CSVWriter
 from sklearn.cluster import KMeans
+from sklearn.decomposition import TruncatedSVD
 from collections import Counter
 
 """ This Server class is customized for Group Prox """
@@ -27,12 +28,14 @@ class Server(BaseFedarated):
         self.evenly = params['evenly']
         self.sklearn_seed = params['seed']
         self.agg_lr = params['agg_lr']
+        self.randomly = params['randomly']
         if self.prox == True:
             self.inner_opt = PerturbedGradientDescent(params['learning_rate'], params['mu'])
         else:
             self.inner_opt = tf.train.GradientDescentOptimizer(params['learning_rate'])
         super(Server, self).__init__(params, learner, dataset)
-        self.latest_model = self.client_model.get_params() # The global model
+        self.latest_model = self.client_model.get_params() # The global AVG model
+        self.latest_update = self.client_model.get_params()
 
         self.create_groups()
 
@@ -46,13 +49,17 @@ class Server(BaseFedarated):
         self.group_ids = [g.get_group_id() for g in self.group_list]
         self.group_cold_start() # init the lastest_model of all groups
 
+    def _get_cosine_similarity(self, m1, m2):
+        flat_m1 = process_grad(m1)
+        flat_m2 = process_grad(m2)
+        cosine = np.dot(flat_m1, flat_m2) / (
+            np.sqrt(np.sum(flat_m1**2)) * np.sqrt(np.sum(flat_m2**2)))
+        return cosine
+
     """ measure the difference between client_model and group_model """
     def measure_difference(self, client_model, group_model):
-        flat_client_model = process_grad(client_model)
-        flat_group_model = process_grad(group_model)
         # Strategy #1: angles (cosine) between two vectors
-        diff = np.dot(flat_client_model, flat_group_model) / (
-            np.sqrt(np.sum(flat_client_model**2)) * np.sqrt(np.sum(flat_group_model**2)))
+        diff = self._get_cosine_similarity(client_model, group_model)
         diff = 1.0 - ((diff + 1.0) / 2.0) # scale to [0, 1] then flip
         # Strategy #2: Euclidean distance between two vectors
         # diff = np.sum((client_model - group_model)**2)
@@ -61,10 +68,15 @@ class Server(BaseFedarated):
     def client_cold_start(self, client):
         if client.group is not None:
             print("Warning: Client already has a group: {:2d}.".format(client.group))
-        client_model = self.pre_train_client(client)
+        
+        # Training is base on the global avg model
+        start_model = self.client_model.get_params() # Backup the model first
+        self.client_model.set_params(self.latest_model) # Set the training model to global avg model
+        
+        client_model, client_update = self.pre_train_client(client)
         diff_list = [] # tuple of (group, diff)
         for g in self.group_list:
-            diff_g = self.measure_difference(client_model, g.latest_model)
+            diff_g = self.measure_difference(client_update, g.latest_update)
             diff_list.append((g, diff_g)) # w/o sort
         
         # update(Init) the diff list of client
@@ -75,21 +87,29 @@ class Server(BaseFedarated):
         # Only set the group attr of client, do not actually add clients to the group
         client.set_group(assign_group)
         
+        # Recovery the training model
+        self.client_model.set_params(start_model)
+
+        return
+        
     """ Deal with the group cold start problem """
     def group_cold_start(self):
         """
         # Strategy #1: random pre-train num_group clients
         selected_clients = random.choices(self.clients, k=self.num_group)
         for c, g in zip(selected_clients, self.group_list):
-            g.latest_model = self.pre_train_client(c)
+            g.latest_model, _ = self.pre_train_client(c)
         """
         # Strategy #2: Pre-train, then clustering the directions of clients' weights
         alpha = 20
-        selected_clients = random.choices(self.clients, k=self.num_group*alpha)
+        selected_clients = random.choices(self.clients, k=min(self.num_group*alpha, len(self.clients)))
         cluster = self.clustering_clients(selected_clients)
         # Init groups accroding to the clustering results
         for g, id in zip(self.group_list, cluster.keys()):
-            g.latest_model = cluster[id][0]
+            # Init the group latest update
+            new_model = cluster[id][0]
+            g.latest_update = [w1-w0 for w0, w1 in zip(g.latest_model, new_model)]
+            g.latest_model = new_model
             # These clients do not need to be cold-started
             for c in cluster[id][1]: c.set_group(g)
         return
@@ -98,13 +118,26 @@ class Server(BaseFedarated):
     def clustering_clients(self, clients, n_clusters=None, max_iter=20):
         if n_clusters is None: n_clusters = self.num_group
         # Pre-train these clients first
-        csolns = {}
+        csolns, cupdates = {}, {}
         for c in clients:
-            csolns[c] = self.pre_train_client(c)
-        diffs = [self.measure_difference(csolns[clients[0]], csolns[c]) for c in clients]
-        diffs = np.array(diffs).reshape(len(clients), 1)
+            csolns[c], cupdates[c] = self.pre_train_client(c)
+
+        update_array = [process_grad(update) for update in cupdates.values()]
+        update_array = np.vstack(update_array).T # shape=(n_client, n_params).T
+        
+        svd = TruncatedSVD(n_components=3, random_state=self.sklearn_seed)
+        decomp_updates = svd.fit_transform(update_array) # shape=(n_params, 3)
+        n_components = decomp_updates.shape[-1]
+
+        diffs = []
+        for dir in decomp_updates.T:
+            dir_diff = [self.measure_difference(cupdates[c], dir) for c in clients]
+            diffs.append(dir_diff)
+        diffs = np.vstack(diffs).T # shape=(n_client, 3)
+
         kmeans = KMeans(n_clusters, random_state=self.sklearn_seed, max_iter=max_iter).fit(diffs)
         print('Clustering Results:', Counter(kmeans.labels_))
+        print('Clustering Inertia:', kmeans.inertia_)
 
         cluster = {} # {Cluster ID: (cm, [c1, c2, ...])}
         cluster2clients = [[] for _ in range(n_clusters)] # [[c1, c2,...], [c3, c4,...], ...]
@@ -122,58 +155,6 @@ class Server(BaseFedarated):
                 print("Error, cluster is empty")
 
         return cluster
-
-    """ Will be deprecated
-    def clustering_clients(self, clients, n_clusters=None, max_iter=20):
-        if n_clusters is None: n_clusters = self.num_group
-        # Pre-train these clients first
-        csolns = {}
-        for c in clients:
-            csolns[c] = self.pre_train_client(c)
-        centers = random.choices(list(csolns.values()), k=n_clusters) # init centers(cluster means)
-        cluster = {} # {Cluster ID: (cm, [c1, c2, ...])}
-        client2cluster = {} # {client: cluster ID}
-        for id in range(n_clusters): cluster[id] = (centers[id], []) # init clusters
-        for c in clients: client2cluster[c] = -1 # init client2cluster
-        for iter in range(max_iter):
-            change_cnt = 0
-            diffs_dict = {} # {This c: [(cluster id, diff), ...]}
-            # calculate the diff between each client and each center means
-            for c in clients:
-                #print(len(csolns[c]), len(cluster[id][0]))
-                diffs = [(id, self.measure_difference(csolns[c], cluster[id][0]))
-                    for id in cluster.keys()]
-                diffs = sorted(diffs, key=lambda tup: tup[1])
-                diffs_dict[c] = diffs
-                nearest_centerID = diffs[0][0]
-                if client2cluster[c] != nearest_centerID:
-                    previous_clusterID = client2cluster[c]
-                    client2cluster[c] = nearest_centerID
-                    if previous_clusterID in cluster.keys():
-                        if c in cluster[previous_clusterID][1]:
-                            cluster[previous_clusterID][1].remove(c)
-                    cluster[nearest_centerID][1].append(c)
-                    change_cnt += 1
-
-            # return if no change
-            if change_cnt == 0:
-                print("Clustering iteration:", iter)
-                return cluster
-            
-            # re-calculate the means of cluster
-            for id, tup in cluster.items():
-                # All client have equal weight
-                weighted_csolns = [(1, csolns[c]) for c in cluster[id][1]]
-                if weighted_csolns:
-                    # Update the cluster means
-                    cluster[id] = (self.aggregate(weighted_csolns), cluster[id][1])
-                else:
-                    print("Error, cluster is empty")
-
-        # Return if reach the max_iter
-        return cluster
-    """
-    
 
     def measure_group_diffs(self):
         diffs = np.empty(len(self.group_list))
@@ -195,8 +176,10 @@ class Server(BaseFedarated):
             self.inner_opt.set_params(self.client_model.get_params(), self.client_model)
         soln, stat = client.solve_inner() # Pre-train the client only one epoch
         ws = soln[1] # weights of model
-        self.client_model.set_params(start_model) # Recovery the model
-        return ws
+        updates = [w1-w0 for w0, w1 in zip(start_model, ws)]
+
+        client.set_params(start_model) # Recovery the model
+        return ws, updates
 
     def get_not_empty_groups(self):
         not_empty_groups = [g for g in self.group_list if not g.is_empty()]
@@ -267,7 +250,7 @@ class Server(BaseFedarated):
                     self.client_cold_start(c)
             """
             # Reshcedule selected clients to groups
-            self.reschedule_groups(selected_clients, self.allow_empty, self.evenly)
+            self.reschedule_groups(selected_clients, self.allow_empty, self.evenly, self.randomly)
 
             # Get not empty groups
             handling_groups = self.get_not_empty_groups()
@@ -334,12 +317,12 @@ class Server(BaseFedarated):
                     # Set the global the group model
                     self.client_model.set_params(g.latest_model)
                     # Begin group training
-                    csolns = g.train()
+                    cupdates = g.train()
                 # After end of the training of client, update the diff list of client
-                for client, weights in csolns.items():
+                for client, update in cupdates.items():
                     diff_list = []
                     for g in self.group_list:
-                        diff_g = self.measure_difference(weights, g.latest_model)
+                        diff_g = self.measure_difference(update, g.latest_update)
                         diff_list.append((g, diff_g))
                     client.update_difference(diff_list)
                         
@@ -347,23 +330,28 @@ class Server(BaseFedarated):
                 #self.client_model.set_params(self.latest_model)
 
             # Aggregate groups model and update the global (latest) model 
-            #self.latest_model = self.aggregate_groups(self.group_list)
-            # Aggregate groups model and update the global (latest) model 
             self.aggregate_groups(self.group_list, agg_lr=self.agg_lr)
+            
+            # Refresh the global model and global delta weights (latest_update)
+            self.refresh_global_model(self.group_list)
+
         # Close the writer and end the training
         self.writer.close()
 
-    """  
-    def aggregate_groups(self, groups):
+    
+    # Use for matain the global AVG model and global latest update
+    def refresh_global_model(self, groups):
+        start_model = self.latest_model 
         # Aggregate the groups model
         gsolns = []
         for g in groups:
-            gsolns.append((sum(g.num_samples), g.latest_model)) # (n_k, soln)
+            gsolns.append((1.0, g.latest_model)) # (n_k, soln)
+        new_model = self.aggregate(gsolns)
+        self.latest_update = [w1-w0 for w0, w1 in zip(start_model, new_model)]
+        self.latest_model = new_model
 
-        self.latest_model = self.aggregate(gsolns)
-        return self.aggregate(gsolns)
+        return
 
-    """
     def aggregate_groups(self, groups, agg_lr):
         gsolns = [(sum(g.num_samples), g.latest_model) for g in groups]
         group_num = len(gsolns)
@@ -383,19 +371,48 @@ class Server(BaseFedarated):
                 for k, v in enumerate(gsoln):
                     base[k] += weights[j]*v.astype(np.float64)
             averaged_soln = [v / total_weights for v in base]
+            g.latest_update = [w1-w0 for w0, w1 in zip(g.latest_model, averaged_soln)]
             g.latest_model = averaged_soln
+
+        return
   
 
-    def reschedule_groups(self, selected_clients, allow_empty=False, evenly=False):
+    def reschedule_groups(self, selected_clients, allow_empty=False, evenly=False, randomly=False):
+        
+        def _get_even_per_group_num(selected_clients_num, group_num):
+            per_group_num = np.array([selected_clients_num // group_num] * group_num)
+            remain = selected_clients_num - sum(per_group_num)
+            random_groups = random.sample(range(group_num), remain)
+            per_group_num[random_groups] += 1 # plus the remain
+            return per_group_num
+
         selected_clients = selected_clients.tolist() # convert numpy array to list
-        if allow_empty:
+
+        if randomly==True and evenly==False:
+            for c in selected_clients:
+                # Assgin client randomly
+                random.choice(self.group_list).add_client(c)
+            return
+        if randomly==True and evenly==True:
+            # Assgin client randomly, but each group is even
+            per_group_num = _get_even_per_group_num(len(selected_clients), len(self.group_list))
+            for g, max in zip(self.group_list, per_group_num): g.max_clients = max
+            head_idx, tail_idx = 0, 0
+            for group_num, g in zip(per_group_num, self.group_list):
+                tail_idx += group_num
+                g.add_clients(selected_clients[head_idx, tail_idx])
+                head_idx = tail_idx
+            return 
+
+        if randomly==False and allow_empty==True:
             # Allocate clients to their first rank groups, some groups may be empty
             for c in selected_clients:
                 if c.is_cold() != True:
                     first_rank_group = c.group
                     first_rank_group.add_client(c)
             return
-        if evenly:
+        
+        if randomly==False and evenly==True:
             """ Strategy #1: Calculate the number of clients in each group (evenly) """
             selected_clients_num = len(selected_clients)
             group_num = len(self.group_list)
@@ -422,7 +439,9 @@ class Server(BaseFedarated):
                             if not group.is_full():
                                 group.add_client(c)
                                 break
-        else:
+            return
+
+        if randomly==False and evenly==False:
             """ Strategy #2: Allocate clients to meet the minimum client requirements """
             for g in self.group_list: g.min_clients = self.group_min_clients
             # First ensure that each group has at least self.min_clients clients.
@@ -441,4 +460,6 @@ class Server(BaseFedarated):
                     first_rank_group = c.group
                     if c.id not in first_rank_group.client_ids:
                         first_rank_group.add_client(c)
+            return
+
         return

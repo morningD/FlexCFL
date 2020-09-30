@@ -18,7 +18,13 @@ class Server(BaseFedarated):
         '''Train using Federated Proximal'''
         print('Training with {} workers ---'.format(self.clients_per_round))
 
+        csolns = []  # buffer for receiving client solutions
+
+        # Evalute model before training
         for i in range(self.num_rounds):
+
+            diffs = [0] # Record the client diff
+
             # test model
             if i % self.eval_every == 0:
                 stats = self.test()  # have set the latest model for all clients
@@ -31,14 +37,22 @@ class Server(BaseFedarated):
                 train_loss = np.dot(stats_train[4], stats_train[2]) * 1.0 / np.sum(stats_train[2])
                 tqdm.write('At round {} training loss: {}'.format(i, train_loss))
 
+                # Write results to a csv file
                 self.writer.write_stats(i, 0, test_acc, train_acc, train_loss, self.clients_per_round)
+
+                # Calculate the client diff and writh it to csv file
+                if csolns:
+                    flat_cmodels = [process_grad(soln[1]) for soln in csolns]
+                    flat_global_model = process_grad(self.latest_model)
+                    diffs[0] = np.sum([np.sum((flat_model-flat_global_model)**2)**0.5 for flat_model in flat_cmodels])
+                self.writer.write_diffs(diffs)
+                tqdm.write('At round {} Discrepancy: {}'.format(i, diffs[0]))
 
             indices, selected_clients = self.select_clients(i, num_clients=self.clients_per_round)  # uniform sampling
             np.random.seed(i)
             active_clients = np.random.choice(selected_clients, round(self.clients_per_round * (1-self.drop_percent)), replace=False)
 
-            csolns = []  # buffer for receiving client solutions
-
+            csolns = [] # Reset the client solutions buffer
             for idx, c in enumerate(active_clients.tolist()):  # simply drop the slow devices
                 # communicate the latest model
                 c.set_params(self.latest_model)

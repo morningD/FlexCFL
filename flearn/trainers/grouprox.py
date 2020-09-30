@@ -111,6 +111,7 @@ class Server(BaseFedarated):
             g.latest_update = [w1-w0 for w0, w1 in zip(g.latest_model, new_model)]
             g.latest_model = new_model
             # These clients do not need to be cold-started
+            # Set the "group" attr of client only, didn't add the client to group
             for c in cluster[id][1]: c.set_group(g)
         return
 
@@ -162,10 +163,11 @@ class Server(BaseFedarated):
             # direction
             #diff = self.measure_difference(self.group_list[0].latest_model, g.latest_model)
             # square root
-            model_a = process_grad(self.group_list[0].latest_model)
+            model_a = process_grad(self.latest_model)
             model_b = process_grad(g.latest_model)
             diff = np.sum((model_a-model_b)**2)**0.5
             diffs[idx] = diff
+        diffs = diffs + [np.sum(diffs)] # Append the sum(discrepancies) to the end
         return diffs
 
     """ Pre-train the client 1 epoch and return weights """

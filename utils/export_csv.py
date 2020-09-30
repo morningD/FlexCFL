@@ -33,6 +33,8 @@ class CSVWriter(object):
         if is_group:
             header += 'MeanTestAcc\tMeanTrainAcc\t'
             header += 'GroupDiff\t'
+        else:
+            header += 'ClientDiff\t'
         return header
 
     def write_stats(self, round, gid, test_acc, train_acc, train_loss, num_client):

@@ -20,7 +20,12 @@ class Server(BaseFedarated):
         '''Train using Federated Proximal'''
         print('Training with {} workers ---'.format(self.clients_per_round))
 
+        csolns = []  # buffer for receiving client solutions
+
         for i in range(self.num_rounds):
+
+            diffs = [0] # Record the client diff
+
             # test model
             if i % self.eval_every == 0:
                 stats = self.test() # have set the latest model for all clients
@@ -35,6 +40,14 @@ class Server(BaseFedarated):
 
                 # Write results to a csv file
                 self.writer.write_stats(i, 0, test_acc, train_acc, train_loss, self.clients_per_round)
+
+                # Calculate the client diff and writh it to csv file
+                if csolns:
+                    flat_cmodels = [process_grad(soln[1]) for soln in csolns]
+                    flat_global_model = process_grad(self.latest_model)
+                    diffs[0] = np.sum([np.sum((flat_model-flat_global_model)**2)**0.5 for flat_model in flat_cmodels])
+                self.writer.write_diffs(diffs)
+                tqdm.write('At round {} Discrepancy: {}'.format(i, diffs[0]))
 
             model_len = process_grad(self.latest_model).size # no equal to model.size
             global_grads = np.zeros(model_len)
@@ -76,6 +89,7 @@ class Server(BaseFedarated):
                     #soln, stats = c.solve_iters(num_iters=np.random.randint(low=1, high=total_iters), batch_size=self.batch_size)
                     soln, stats = c.solve_inner(num_epochs=np.random.randint(low=1, high=self.num_epochs), batch_size=self.batch_size)
 
+                # print(soln[0]) #DEBUG
                 # gather solutions from client
                 csolns.append(soln)
         

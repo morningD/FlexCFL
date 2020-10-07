@@ -22,6 +22,10 @@ class BaseFedarated(object):
         # initialize system metrics
         self.metrics = Metrics(self.clients, params)
 
+        # Print the number of parameters
+        model_len = process_grad(self.latest_model).size
+        print('{} Parameters in Total'.format(model_len))
+
     def __del__(self):
         self.client_model.close()
 

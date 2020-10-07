@@ -14,6 +14,7 @@ from utils.export_csv import CSVWriter
 from sklearn.cluster import KMeans
 from sklearn.decomposition import TruncatedSVD
 from collections import Counter
+import time
 
 """ This Server class is customized for Group Prox """
 class Server(BaseFedarated):
@@ -39,7 +40,7 @@ class Server(BaseFedarated):
 
         self.create_groups()
 
-        self.writer = CSVWriter(params['export_filename'], 'results', self.group_ids)
+        self.writer = CSVWriter(params['export_filename'], 'results/'+params['dataset'], self.group_ids)
 
     """
     initialize the Group() instants
@@ -64,6 +65,16 @@ class Server(BaseFedarated):
         # Strategy #2: Euclidean distance between two vectors
         # diff = np.sum((client_model - group_model)**2)
         return diff
+
+    def get_ternary_cosine_similarity_matrix(self, w, V):
+        #print(type(w), type(V))
+        print('Delta w shape:', w.shape, 'Matrix V shape', V.shape)
+        w, V = w.astype(np.float32), V.astype(np.float32)
+        left = np.matmul(w, V) # delta_w (dot) V
+        scale = np.reciprocal(np.linalg.norm(w, axis=1, keepdims=True) * np.linalg.norm(V, axis=0, keepdims=True))
+        diffs = left * scale # element-wise product
+        diffs = (-diffs+1.)/2.
+        return diffs
 
     def client_cold_start(self, client):
         if client.group is not None:
@@ -96,14 +107,14 @@ class Server(BaseFedarated):
     def group_cold_start(self):
         """
         # Strategy #1: random pre-train num_group clients
-        selected_clients = random.choices(self.clients, k=self.num_group)
+        selected_clients = random.sample(self.clients, k=self.num_group)
         for c, g in zip(selected_clients, self.group_list):
             g.latest_model, _ = self.pre_train_client(c)
         """
         # Strategy #2: Pre-train, then clustering the directions of clients' weights
         alpha = 20
-        selected_clients = random.choices(self.clients, k=min(self.num_group*alpha, len(self.clients)))
-        cluster = self.clustering_clients(selected_clients)
+        selected_clients = random.sample(self.clients, k=min(self.num_group*alpha, len(self.clients)))
+        cluster = self.clustering_clients(selected_clients) # {Cluster ID: (cm, [c1, c2, ...])}
         # Init groups accroding to the clustering results
         for g, id in zip(self.group_list, cluster.keys()):
             # Init the group latest update
@@ -120,23 +131,40 @@ class Server(BaseFedarated):
         if n_clusters is None: n_clusters = self.num_group
         # Pre-train these clients first
         csolns, cupdates = {}, {}
+
+        # Record the execution time
+        start_time = time.time()
         for c in clients:
             csolns[c], cupdates[c] = self.pre_train_client(c)
+        print("Pre-training take {}s seconds".format(time.time()-start_time))
 
         update_array = [process_grad(update) for update in cupdates.values()]
-        update_array = np.vstack(update_array).T # shape=(n_client, n_params).T
+        update_array = np.vstack(update_array).T # shape=(n_params, n_client)
         
+        # Record the execution time
+        start_time = time.time()
         svd = TruncatedSVD(n_components=3, random_state=self.sklearn_seed)
         decomp_updates = svd.fit_transform(update_array) # shape=(n_params, 3)
+        print("SVD take {}s seconds".format(time.time()-start_time))
         n_components = decomp_updates.shape[-1]
 
+        # Record the execution time
+        start_time = time.time()
         diffs = []
+        delta_w = update_array.T # shape=(n_client, n_params)
+        diffs = self.get_ternary_cosine_similarity_matrix(delta_w, decomp_updates)
+        '''
         for dir in decomp_updates.T:
             dir_diff = [self.measure_difference(cupdates[c], dir) for c in clients]
             diffs.append(dir_diff)
         diffs = np.vstack(diffs).T # shape=(n_client, 3)
-
+        '''
+        print("Calculate Cossim matrix take {}s seconds".format(time.time()-start_time))
+        
+        # Record the execution time
+        start_time = time.time()
         kmeans = KMeans(n_clusters, random_state=self.sklearn_seed, max_iter=max_iter).fit(diffs)
+        print("Clustering take {}s seconds".format(time.time()-start_time))
         print('Clustering Results:', Counter(kmeans.labels_))
         print('Clustering Inertia:', kmeans.inertia_)
 

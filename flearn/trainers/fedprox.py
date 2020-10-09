@@ -14,7 +14,7 @@ class Server(BaseFedarated):
         print('Using Federated prox to Train')
         self.inner_opt = PerturbedGradientDescent(params['learning_rate'], params['mu'])
         super(Server, self).__init__(params, learner, dataset)
-        self.writer = CSVWriter(params['export_filename'], 'results')
+        self.writer = CSVWriter(params['export_filename'], 'results/'+params['dataset'])
 
     def train(self):
         '''Train using Federated Proximal'''

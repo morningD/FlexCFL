@@ -12,7 +12,7 @@ class Server(BaseFedarated):
         print('Using Federated avg to Train')
         self.inner_opt = tf.train.GradientDescentOptimizer(params['learning_rate'])
         super(Server, self).__init__(params, learner, dataset)
-        self.writer = CSVWriter(params['export_filename'], 'results')
+        self.writer = CSVWriter(params['export_filename'], 'results/'+params['dataset'])
 
     def train(self):
         '''Train using Federated Proximal'''

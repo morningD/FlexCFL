@@ -68,7 +68,7 @@ class Server(BaseFedarated):
 
     def get_ternary_cosine_similarity_matrix(self, w, V):
         #print(type(w), type(V))
-        print('Delta w shape:', w.shape, 'Matrix V shape', V.shape)
+        print('Delta w shape:', w.shape, 'Matrix V shape:', V.shape)
         w, V = w.astype(np.float32), V.astype(np.float32)
         left = np.matmul(w, V) # delta_w (dot) V
         scale = np.reciprocal(np.linalg.norm(w, axis=1, keepdims=True) * np.linalg.norm(V, axis=0, keepdims=True))
@@ -136,7 +136,7 @@ class Server(BaseFedarated):
         start_time = time.time()
         for c in clients:
             csolns[c], cupdates[c] = self.pre_train_client(c)
-        print("Pre-training take {}s seconds".format(time.time()-start_time))
+        print("Pre-training takes {}s seconds".format(time.time()-start_time))
 
         update_array = [process_grad(update) for update in cupdates.values()]
         update_array = np.vstack(update_array).T # shape=(n_params, n_client)
@@ -145,7 +145,7 @@ class Server(BaseFedarated):
         start_time = time.time()
         svd = TruncatedSVD(n_components=3, random_state=self.sklearn_seed)
         decomp_updates = svd.fit_transform(update_array) # shape=(n_params, 3)
-        print("SVD take {}s seconds".format(time.time()-start_time))
+        print("SVD takes {}s seconds".format(time.time()-start_time))
         n_components = decomp_updates.shape[-1]
 
         # Record the execution time
@@ -159,12 +159,12 @@ class Server(BaseFedarated):
             diffs.append(dir_diff)
         diffs = np.vstack(diffs).T # shape=(n_client, 3)
         '''
-        print("Calculate Cossim matrix take {}s seconds".format(time.time()-start_time))
+        print("Ternary Cossim Matrix calculation takes {}s seconds".format(time.time()-start_time))
         
         # Record the execution time
         start_time = time.time()
         kmeans = KMeans(n_clusters, random_state=self.sklearn_seed, max_iter=max_iter).fit(diffs)
-        print("Clustering take {}s seconds".format(time.time()-start_time))
+        print("Clustering takes {}s seconds".format(time.time()-start_time))
         print('Clustering Results:', Counter(kmeans.labels_))
         print('Clustering Inertia:', kmeans.inertia_)
 

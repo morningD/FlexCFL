@@ -61,9 +61,7 @@ class Group(object):
 
     """ Set the prime client. You should freeze this group before train """
     def freeze(self):
-        # TODO: apply some strategy
-        #self.prime_client = self.clients[random.choice(self.client_ids)]
-        self.model_len = process_grad(self.latest_model).size # should be 784*10+10
+        self.model_len = process_grad(self.latest_model).size # For MNIST, should be 784*10+10
         self.num_samples = [c.num_samples for c in self.clients.values()]
         if len(self.client_ids) < self.min_clients:
             print("Warning: This group does not meet the minimum client requirements.")

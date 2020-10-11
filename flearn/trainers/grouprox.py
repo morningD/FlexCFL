@@ -29,7 +29,8 @@ class Server(BaseFedarated):
         self.evenly = params['evenly']
         self.sklearn_seed = params['seed']
         self.agg_lr = params['agg_lr']
-        self.randomly = params['randomly']
+        self.RAC = params['RAC'] # Randomly Assign Clients
+        self.RCC = params['RCC'] # Random Cluster Center
         if self.prox == True:
             self.inner_opt = PerturbedGradientDescent(params['learning_rate'], params['mu'])
         else:
@@ -48,7 +49,7 @@ class Server(BaseFedarated):
     def create_groups(self):
         self.group_list = [Group(gid, self.client_model) for gid in range(self.num_group)] # 0,1,...,num_group
         self.group_ids = [g.get_group_id() for g in self.group_list]
-        self.group_cold_start() # init the lastest_model of all groups
+        self.group_cold_start(self.RCC) # init the lastest_model of all groups
 
     def _get_cosine_similarity(self, m1, m2):
         flat_m1 = process_grad(m1)
@@ -104,26 +105,29 @@ class Server(BaseFedarated):
         return
         
     """ Deal with the group cold start problem """
-    def group_cold_start(self):
-        """
-        # Strategy #1: random pre-train num_group clients
-        selected_clients = random.sample(self.clients, k=self.num_group)
-        for c, g in zip(selected_clients, self.group_list):
-            g.latest_model, _ = self.pre_train_client(c)
-        """
-        # Strategy #2: Pre-train, then clustering the directions of clients' weights
-        alpha = 20
-        selected_clients = random.sample(self.clients, k=min(self.num_group*alpha, len(self.clients)))
-        cluster = self.clustering_clients(selected_clients) # {Cluster ID: (cm, [c1, c2, ...])}
-        # Init groups accroding to the clustering results
-        for g, id in zip(self.group_list, cluster.keys()):
-            # Init the group latest update
-            new_model = cluster[id][0]
-            g.latest_update = [w1-w0 for w0, w1 in zip(g.latest_model, new_model)]
-            g.latest_model = new_model
-            # These clients do not need to be cold-started
-            # Set the "group" attr of client only, didn't add the client to group
-            for c in cluster[id][1]: c.set_group(g)
+    def group_cold_start(self, random_centers=False):
+        
+        if random_centers == True:
+            # Strategy #1: random pre-train num_group clients as cluster centers
+            selected_clients = random.sample(self.clients, k=self.num_group)
+            for c, g in zip(selected_clients, self.group_list):
+                g.latest_model, g.latest_update = self.pre_train_client(c)
+                c.set_group(g)
+        
+        if random_centers == False:
+            # Strategy #2: Pre-train, then clustering the directions of clients' weights
+            alpha = 20
+            selected_clients = random.sample(self.clients, k=min(self.num_group*alpha, len(self.clients)))
+            cluster = self.clustering_clients(selected_clients) # {Cluster ID: (cm, [c1, c2, ...])}
+            # Init groups accroding to the clustering results
+            for g, id in zip(self.group_list, cluster.keys()):
+                # Init the group latest update
+                new_model = cluster[id][0]
+                g.latest_update = [w1-w0 for w0, w1 in zip(g.latest_model, new_model)]
+                g.latest_model = new_model
+                # These clients do not need to be cold-started
+                # Set the "group" attr of client only, didn't add the client to group
+                for c in cluster[id][1]: c.set_group(g)
         return
 
     """ Clustering clients by K Means"""
@@ -273,14 +277,10 @@ class Server(BaseFedarated):
             
             # Clear all group, the group attr of client is retrained
             for g in self.group_list: g.clear_clients()
+            
             # Client cold start
-            """
-            for c in selected_clients:
-                if c.is_cold():
-                    self.client_cold_start(c)
-            """
             # Reshcedule selected clients to groups
-            self.reschedule_groups(selected_clients, self.allow_empty, self.evenly, self.randomly)
+            self.reschedule_groups(selected_clients, self.allow_empty, self.evenly, self.RAC)
 
             # Get not empty groups
             handling_groups = self.get_not_empty_groups()
@@ -420,11 +420,16 @@ class Server(BaseFedarated):
 
         if randomly==True and evenly==False:
             for c in selected_clients:
-                # Assgin client randomly
-                random.choice(self.group_list).add_client(c)
+                if c.is_cold() == True:
+                    # Randomly assgin client
+                    random.choice(self.group_list).add_client(c)
+                else:
+                    c.group.add_client(c)
             return
+            
         if randomly==True and evenly==True:
-            # Assgin client randomly, but each group is even
+            """
+            # Randomly assgin client, but each group is even
             per_group_num = _get_even_per_group_num(len(selected_clients), len(self.group_list))
             for g, max in zip(self.group_list, per_group_num): g.max_clients = max
             head_idx, tail_idx = 0, 0
@@ -432,6 +437,8 @@ class Server(BaseFedarated):
                 tail_idx += group_num
                 g.add_clients(selected_clients[head_idx, tail_idx])
                 head_idx = tail_idx
+            """
+            print("Experimental setting is invalid.")
             return 
 
         if randomly==False and allow_empty==True:

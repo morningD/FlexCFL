@@ -11,6 +11,7 @@ class Client(object):
         self.num_samples = len(self.train_data['y'])
         self.test_samples = len(self.eval_data['y'])
         self.difference = [] # tuple of (group, diff)
+        self.clustering = False # Is the client join the clustering proceudre.
 
     def set_params(self, model_params):
         '''set model parameters'''

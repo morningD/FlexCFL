@@ -13,6 +13,7 @@ import random
 from utils.export_csv import CSVWriter
 from sklearn.cluster import KMeans
 from sklearn.decomposition import TruncatedSVD
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from collections import Counter
 import time
 
@@ -74,7 +75,7 @@ class Server(BaseFedarated):
         left = np.matmul(w, V) # delta_w (dot) V
         scale = np.reciprocal(np.linalg.norm(w, axis=1, keepdims=True) * np.linalg.norm(V, axis=0, keepdims=True))
         diffs = left * scale # element-wise product
-        diffs = (-diffs+1.)/2.
+        diffs = (-diffs+1.)/2. # Normalize to [0,1]
         return diffs
 
     def client_cold_start(self, client):
@@ -118,6 +119,9 @@ class Server(BaseFedarated):
             # Strategy #2: Pre-train, then clustering the directions of clients' weights
             alpha = 20
             selected_clients = random.sample(self.clients, k=min(self.num_group*alpha, len(self.clients)))
+
+            for c in selected_clients: c.clustering = True # Mark these clients as clustering client
+
             cluster = self.clustering_clients(selected_clients) # {Cluster ID: (cm, [c1, c2, ...])}
             # Init groups accroding to the clustering results
             for g, id in zip(self.group_list, cluster.keys()):
@@ -263,9 +267,9 @@ class Server(BaseFedarated):
 
     def train(self):
         print('Training with {} workers ---'.format(self.clients_per_round))
-        # Clients cold start
+        # Clients cold start, pre-train all clients
         for c in self.clients:
-                if c.is_cold():
+                if c.is_cold() == True:
                     self.client_cold_start(c)
 
         for i in range(self.num_rounds):
@@ -420,11 +424,15 @@ class Server(BaseFedarated):
 
         if randomly==True and evenly==False:
             for c in selected_clients:
-                if c.is_cold() == True:
-                    # Randomly assgin client
-                    random.choice(self.group_list).add_client(c)
+                if c.is_cold() == False:
+                    if c.clustering == False:
+                        # Randomly assgin client
+                        random.choice(self.group_list).add_client(c)
+                    else:
+                        # This client is clustering client.
+                        c.group.add_client(c)
                 else:
-                    c.group.add_client(c)
+                    print('Warnning: A newcomer is no pre-trained.')
             return
             
         if randomly==True and evenly==True:
@@ -500,3 +508,49 @@ class Server(BaseFedarated):
             return
 
         return
+
+    def test_ternary_cosine_similariy(self, alpha=20):
+        ''' compare the ternary similarity and cosine similarity '''
+        def calculate_cosine_distance(v1, v2):
+            cosine = np.dot(v1, v2) / (np.sqrt(np.sum(v1**2)) * np.sqrt(np.sum(v2**2)))
+            return cosine
+
+        # Pre-train all clients
+        csolns, cupdates = {}, {}
+        for c in self.clients:
+            csolns[c], cupdates[c] = self.pre_train_client(c)
+
+        # random selecte alpha * m clients to calculate the direction matrix V
+        n_clients = len(self.clients)
+        clustering_clients = random.sample(self.clients, k=min(self.num_group*alpha, n_clients))
+        clustering_update_array = [process_grad(cupdates[c]) for c in clustering_clients]
+        clustering_update_array = np.vstack(clustering_update_array).T # shape=(n_params, n_clients)
+        
+        svd = TruncatedSVD(n_components=3, random_state=self.sklearn_seed)
+        decomp_updates = svd.fit_transform(clustering_update_array) # shape=(n_params, 3)
+        n_components = decomp_updates.shape[-1]
+
+        # calculate the ternary similarity matrix for all clients
+        ternary_cossim = []
+        update_array = [process_grad(cupdates[c]) for c in self.clients]
+        delta_w = np.vstack(update_array) # shape=(n_clients, n_params)
+        ternary_cossim = self.get_ternary_cosine_similarity_matrix(delta_w, decomp_updates)
+
+        # calculate the tranditional similarity matrix for all clients
+        #old_cossim = np.zeros(shape=(n_clients, n_clients), dtype=np.float32)
+
+        old_cossim = cosine_similarity(delta_w)
+        old_cossim = (1.0 - old_cossim) / 2.0 # Normalize
+
+        # Calculate the euclidean distance between every two similaries
+        distance_ternary = euclidean_distances(ternary_cossim)
+        distance_cossim = euclidean_distances(old_cossim) # shape=(n_clients, n_clients)
+        print(distance_ternary.shape, distance_cossim.shape) # shape=(n_clients, n_clients)
+
+        iu = np.triu_indices(n_clients)
+        x, y = distance_ternary[iu], distance_cossim[iu]
+        mesh_points = np.vstack((x,y)).T
+
+        print(x.shape, y.shape)
+        np.savetxt("cossim.csv", mesh_points, delimiter="\t")
+        return x, y

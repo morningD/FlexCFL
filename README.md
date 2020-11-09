@@ -90,9 +90,10 @@ Please cite the preprint version of `FedGroup` if the code helped your research 
 
 - [FedGroup: Ternary Cosine Similarity-based Clustered Federated Learning Framework toward High Accuracy in Heterogeneous Data](https://arxiv.org/abs/2010.06870)
 
+BibTeX
 ```
 @article{duan2020fedgroup,
-  title={FedGroup: Ternary Cosine Similarity-based Clustered Federated Learning Framework toward High Accuracy in Heterogeneity Data},
+  title={FedGroup: Ternary Cosine Similarity-based Clustered Federated Learning Framework toward High Accuracy in Heterogeneous Data},
   author={Duan, Moming and Liu, Duo and Ji, Xinyuan and Liu, Renping and Liang, Liang and Chen, Xianzhang and Tan, Yujuan},
   journal={arXiv preprint arXiv:2010.06870},
   year={2020}

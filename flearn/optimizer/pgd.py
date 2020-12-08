@@ -3,8 +3,8 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import state_ops
 from tensorflow.python.framework import ops
 from tensorflow.python.training import optimizer
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 
 
 class PerturbedGradientDescent(optimizer.Optimizer):
@@ -64,7 +64,7 @@ class PerturbedGradientDescent(optimizer.Optimizer):
 
     def set_params(self, cog, client): # (self.latest_model, self.client_model)
         with client.graph.as_default():
-            all_vars = tf.trainable_variables()
+            all_vars = tf.compat.v1.trainable_variables()
             for variable, value in zip(all_vars, cog):
                 vstar = self.get_slot(variable, "vstar")
                 vstar.load(value, client.sess)

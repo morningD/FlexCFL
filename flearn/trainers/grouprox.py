@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import trange, tqdm
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 
 from .fedbase import BaseFedarated
 from flearn.optimizer.pgd import PerturbedGradientDescent
@@ -35,7 +35,7 @@ class Server(BaseFedarated):
         if self.prox == True:
             self.inner_opt = PerturbedGradientDescent(params['learning_rate'], params['mu'])
         else:
-            self.inner_opt = tf.train.GradientDescentOptimizer(params['learning_rate'])
+            self.inner_opt = tf.compat.v1.train.GradientDescentOptimizer(params['learning_rate'])
         super(Server, self).__init__(params, learner, dataset)
         self.latest_model = self.client_model.get_params() # The global AVG model
         self.latest_update = self.client_model.get_params()

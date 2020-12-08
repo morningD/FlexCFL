@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import trange, tqdm
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 
 from .fedbase import BaseFedarated
 from flearn.optimizer.pgd import PerturbedGradientDescent

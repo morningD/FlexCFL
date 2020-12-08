@@ -44,7 +44,7 @@ class PerGodGradientDescent(optimizer.Optimizer):
 
     def set_params(self, cog, avg_gradient, client):
         with client.model.graph.as_default():
-            all_vars = tf.trainable_variables()
+            all_vars = tf.compat.v1.trainable_variables()
             for variable, value in zip(all_vars, cog):
                 vstar = self.get_slot(variable, "vstar")
                 vstar.load(value, client.model.sess)
@@ -56,7 +56,7 @@ class PerGodGradientDescent(optimizer.Optimizer):
         gdiff = [g1-g2 for g1,g2 in zip(avg_gradient, gprev)]
 
         with client.model.graph.as_default():
-            all_vars = tf.trainable_variables()
+            all_vars = tf.compat.v1.trainable_variables()
             for variable, grad in zip(all_vars, gdiff):
                 gold = self.get_slot(variable, "gold")
                 gold.load(grad, client.model.sess)

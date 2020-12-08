@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import trange, tqdm
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 
 from .fedbase import BaseFedarated
 from flearn.utils.tf_utils import process_grad
@@ -10,7 +10,7 @@ from utils.export_csv import CSVWriter
 class Server(BaseFedarated):
     def __init__(self, params, learner, dataset):
         print('Using Federated avg to Train')
-        self.inner_opt = tf.train.GradientDescentOptimizer(params['learning_rate'])
+        self.inner_opt = tf.compat.v1.train.GradientDescentOptimizer(params['learning_rate'])
         super(Server, self).__init__(params, learner, dataset)
         self.writer = CSVWriter(params['export_filename'], 'results/'+params['dataset'])
 

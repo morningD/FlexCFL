@@ -1,6 +1,6 @@
 import numpy as np
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 from tqdm import tqdm
 
 from flearn.models.client import Client
@@ -13,7 +13,7 @@ class BaseFedarated(object):
         for key, val in params.items(): setattr(self, key, val)
 
         # create worker nodes
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
         self.client_model = learner(*params['model_params'], self.inner_opt, self.seed)
         self.clients = self.setup_clients(dataset, self.client_model)
         print('{} Clients in Total'.format(len(self.clients)))

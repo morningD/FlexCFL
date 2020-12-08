@@ -7,8 +7,8 @@ import sys
 
 #from tensorflow.contrib import rnn
 # Migrate to TF2
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 import tensorflow.compat.v1.nn.rnn_cell as rnn
 
 utils_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -37,40 +37,40 @@ class Model(object):
 
         self.graph = tf.Graph()
         with self.graph.as_default():
-            tf.set_random_seed(123 + seed)
+            tf.compat.v1.set_random_seed(123 + seed)
             self.features, self.labels, self.train_op, self.grads, self.eval_metric_ops, self.loss = self.create_model(optimizer)
-            self.saver = tf.train.Saver()
-        self.sess = tf.Session(graph=self.graph)
+            self.saver = tf.compat.v1.train.Saver()
+        self.sess = tf.compat.v1.Session(graph=self.graph)
 
         self.size = graph_size(self.graph)
 
         with self.graph.as_default():
-            self.sess.run(tf.global_variables_initializer())
+            self.sess.run(tf.compat.v1.global_variables_initializer())
 
-            metadata = tf.RunMetadata()
-            opts = tf.profiler.ProfileOptionBuilder.float_operation()
-            self.flops = tf.profiler.profile(self.graph, run_meta=metadata, cmd='scope', options=opts).total_float_ops
+            metadata = tf.compat.v1.RunMetadata()
+            opts = tf.compat.v1.profiler.ProfileOptionBuilder.float_operation()
+            self.flops = tf.compat.v1.profiler.profile(self.graph, run_meta=metadata, cmd='scope', options=opts).total_float_ops
 
     def create_model(self, optimizer):
-        features = tf.placeholder(tf.int32, [None, self.seq_len])
-        embedding = tf.get_variable("embedding", [self.num_classes, 8])
-        x = tf.nn.embedding_lookup(embedding, features)
-        labels = tf.placeholder(tf.int32, [None, self.num_classes])
+        features = tf.compat.v1.placeholder(tf.int32, [None, self.seq_len])
+        embedding = tf.compat.v1.get_variable("embedding", [self.num_classes, 8])
+        x = tf.nn.embedding_lookup(params=embedding, ids=features)
+        labels = tf.compat.v1.placeholder(tf.int32, [None, self.num_classes])
         
         stacked_lstm = rnn.MultiRNNCell(
             [rnn.BasicLSTMCell(self.n_hidden) for _ in range(2)])
-        outputs, _ = tf.nn.dynamic_rnn(stacked_lstm, x, dtype=tf.float32)
-        pred = tf.layers.dense(inputs=outputs[:,-1,:], units=self.num_classes)
+        outputs, _ = tf.compat.v1.nn.dynamic_rnn(stacked_lstm, x, dtype=tf.float32)
+        pred = tf.compat.v1.layers.dense(inputs=outputs[:,-1,:], units=self.num_classes)
         
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=labels))
+        loss = tf.reduce_mean(input_tensor=tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=labels))
 
         grads_and_vars = optimizer.compute_gradients(loss)
         grads, _ = zip(*grads_and_vars)
-        train_op = optimizer.apply_gradients(grads_and_vars, global_step=tf.train.get_global_step())
+        train_op = optimizer.apply_gradients(grads_and_vars, global_step=tf.compat.v1.train.get_global_step())
 
 
-        correct_pred = tf.equal(tf.argmax(pred, 1), tf.argmax(labels, 1))
-        eval_metric_ops = tf.count_nonzero(correct_pred)
+        correct_pred = tf.equal(tf.argmax(input=pred, axis=1), tf.argmax(input=labels, axis=1))
+        eval_metric_ops = tf.math.count_nonzero(correct_pred)
 
         return features, labels, train_op, grads, eval_metric_ops, loss
 
@@ -78,13 +78,13 @@ class Model(object):
     def set_params(self, model_params=None):
         if model_params is not None:
             with self.graph.as_default():
-                all_vars = tf.trainable_variables()
+                all_vars = tf.compat.v1.trainable_variables()
                 for variable, value in zip(all_vars, model_params):
                     variable.load(value, self.sess)
 
     def get_params(self):
         with self.graph.as_default():
-            model_params = self.sess.run(tf.trainable_variables())
+            model_params = self.sess.run(tf.compat.v1.trainable_variables())
         return model_params
 
     def get_gradients(self, data, model_len):

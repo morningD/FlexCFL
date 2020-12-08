@@ -1,5 +1,5 @@
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 
 def __num_elems(shape):
     '''Returns the number of elements in the given shape
@@ -31,7 +31,7 @@ def graph_size(graph):
     tot_size = 0
     with graph.as_default():
         xxx = tf.compat.v1.trainable_variables()
-        vs = tf.trainable_variables()
+        vs = tf.compat.v1.trainable_variables()
         for v in vs:
             tot_elems = __num_elems(v.shape)
             dtype_size = int(v.dtype.size)

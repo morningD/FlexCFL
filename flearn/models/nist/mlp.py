@@ -1,6 +1,6 @@
 import numpy as np
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 from tqdm import trange
 
 from flearn.utils.model_utils import batch_data, batch_data_multiple_iters
@@ -21,47 +21,47 @@ class Model(object):
         # create computation graph        
         self.graph = tf.Graph()
         with self.graph.as_default():
-            tf.set_random_seed(123+seed)
+            tf.compat.v1.set_random_seed(123+seed)
             self.features, self.labels, self.train_op, self.grads, self.eval_metric_ops, self.loss = self.create_model(optimizer)
-            self.saver = tf.train.Saver()
-        self.sess = tf.Session(graph=self.graph)
+            self.saver = tf.compat.v1.train.Saver()
+        self.sess = tf.compat.v1.Session(graph=self.graph)
 
         # find memory footprint and compute cost of the model
         self.size = graph_size(self.graph) # var_num * bytes_size
         with self.graph.as_default():
-            self.sess.run(tf.global_variables_initializer())
-            metadata = tf.RunMetadata()
-            opts = tf.profiler.ProfileOptionBuilder.float_operation()
-            self.flops = tf.profiler.profile(self.graph, run_meta=metadata, cmd='scope', options=opts).total_float_ops
+            self.sess.run(tf.compat.v1.global_variables_initializer())
+            metadata = tf.compat.v1.RunMetadata()
+            opts = tf.compat.v1.profiler.ProfileOptionBuilder.float_operation()
+            self.flops = tf.compat.v1.profiler.profile(self.graph, run_meta=metadata, cmd='scope', options=opts).total_float_ops
     
     def create_model(self, optimizer):
         """Model function for Logistic Regression."""
-        features = tf.placeholder(tf.float32, shape=[None, 784], name='features')
-        labels = tf.placeholder(tf.int64, shape=[None,], name='labels')
-        hidden = tf.layers.dense(inputs=features, units=512, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(0.001))
-        logits = tf.layers.dense(inputs=hidden, units=self.num_classes, kernel_regularizer=tf.keras.regularizers.l2(0.001))
+        features = tf.compat.v1.placeholder(tf.float32, shape=[None, 784], name='features')
+        labels = tf.compat.v1.placeholder(tf.int64, shape=[None,], name='labels')
+        hidden = tf.compat.v1.layers.dense(inputs=features, units=512, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(0.001))
+        logits = tf.compat.v1.layers.dense(inputs=hidden, units=self.num_classes, kernel_regularizer=tf.keras.regularizers.l2(0.001))
         predictions = {
             "classes": tf.argmax(input=logits, axis=1),
             "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
             }
-        loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+        loss = tf.compat.v1.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
         grads_and_vars = optimizer.compute_gradients(loss)
         grads, _ = zip(*grads_and_vars)
-        train_op = optimizer.apply_gradients(grads_and_vars, global_step=tf.train.get_global_step())
-        eval_metric_ops = tf.count_nonzero(tf.equal(labels, predictions["classes"]))
+        train_op = optimizer.apply_gradients(grads_and_vars, global_step=tf.compat.v1.train.get_global_step())
+        eval_metric_ops = tf.math.count_nonzero(tf.equal(labels, predictions["classes"]))
         return features, labels, train_op, grads, eval_metric_ops, loss
 
     def set_params(self, model_params=None):
         if model_params is not None:
             with self.graph.as_default():
-                all_vars = tf.trainable_variables()
+                all_vars = tf.compat.v1.trainable_variables()
                 for variable, value in zip(all_vars, model_params):
                     variable.load(value, self.sess)
 
     def get_params(self):
         with self.graph.as_default():
-            model_params = self.sess.run(tf.trainable_variables())
+            model_params = self.sess.run(tf.compat.v1.trainable_variables())
         return model_params
 
     def get_gradients(self, data, model_len):

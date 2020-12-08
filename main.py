@@ -3,8 +3,8 @@ import argparse
 import importlib
 import random
 import os
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 from flearn.utils.model_utils import read_data
 
 # GLOBAL PARAMETERS
@@ -91,7 +91,7 @@ def read_options():
     # Set seeds
     random.seed(1 + parsed['seed'])
     np.random.seed(12 + parsed['seed'])
-    tf.set_random_seed(123 + parsed['seed'])
+    tf.compat.v1.set_random_seed(123 + parsed['seed'])
 
 
     # load selected model
@@ -121,7 +121,7 @@ def read_options():
 
 def main():
     # suppress tf warnings
-    tf.logging.set_verbosity(tf.logging.WARN)
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.WARN)
     
     # parse command line arguments
     options, learner, optimizer = read_options()

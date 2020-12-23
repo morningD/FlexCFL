@@ -118,7 +118,7 @@ class Actor(object):
         '''
         if self.test_data['y'].shape[0] > 0:
             X, y_true = self.test_data['x'], self.test_data['y']
-            acc, loss = self.model.evaluate(X, y_true, verbose=0)
+            loss, acc = self.model.evaluate(X, y_true, verbose=0)
             return self.test_data['y'].shape[0], acc, loss
         else:
             return 0, 0, 0

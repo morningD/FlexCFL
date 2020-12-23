@@ -3,9 +3,6 @@ from pathlib import Path
 import tensorflow as tf
 import numpy as np
 
-print(str(__package__))
-print(__name__)
-
 def read_fedprox_json(train_data_dir, test_data_dir):
     '''parses data in given train and test data directories
 
@@ -68,8 +65,8 @@ def read_federated_data(dsname):
     
     # Convert list to numpy array
     for c in train_data.keys():
-        train_data[c]['x'] = np.array(train_data[c]['x'])
-        train_data[c]['y'] = np.array(train_data[c]['y'])
+        train_data[c]['x'] = np.array(train_data[c]['x']) # shape=(num_samples, num_features)
+        train_data[c]['y'] = np.array(train_data[c]['y']) # shape=(num_samples, )
     for c in test_data.keys():
         test_data[c]['x'] = np.array(test_data[c]['x'])
         test_data[c]['y'] = np.array(test_data[c]['y'])

@@ -101,6 +101,7 @@ class Server(Actor):
             for node in self.downlink:
                 num_samples, test_acc, test_loss = node.test()
                 results.append([node, num_samples, test_acc, test_loss])
+            return results
         else:
             print('ERROR: This server has not test clients/groups with testing data/clients')
             return

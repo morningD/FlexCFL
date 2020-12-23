@@ -17,6 +17,9 @@ class Actor(object):
         # init train and test size to zero, it will depend on the actor type
         self.train_size, self.test_size = 0, 0 
         self.uplink, self.downlink = [], [] # init to empty, depend on the actor type
+        # Is this actor can train or test,
+        # Note: This variable have differenct meaning according to differnent type of actor
+        self.trainable, self.testable = False, False 
 
         self.preprocess()
 
@@ -30,6 +33,8 @@ class Actor(object):
             return self.model.get_weights()
     
     def set_params(self, weights):
+        # Set the params of model,
+        # But the latest_params and latest_updates will not be refreshed
         if self.model:
             self.model.set_weights(weights)
             
@@ -64,6 +69,7 @@ class Actor(object):
             X, y_true = self.train_data['x'], self.train_data['y']
             num_samples = y_true.shape[0]
             t0_weights = self.get_params()
+            # Use model.fit() to train model
             history = self.model.fit(X, y_true, batch_size, num_epoch, verbose=0)
             t1_weights = self.get_params()
             
@@ -72,16 +78,39 @@ class Actor(object):
             # Calculate the updates
             updates = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
             # Get the train accuracy and train loss
-            print(history.history)
+            #print(history.history) # Debug
             train_acc = history.history['accuracy']
             train_loss = history.history['loss']
-            print(train_acc) # Debug
+            #print(train_acc) # Debug
             
             return num_samples, train_acc, train_loss, updates
         else:
             # Return 0,0,0 and all zero updates [0, 0, ...],
             # if this actor has not training set
             return 0, [0], [0], [np.zeros_like(ws) for ws in self.latest_params]
+
+    def apply_update(self, update):
+        '''
+        Apply update to model and Refresh the latest_params and latest_updates
+        Return:
+            1, Latest model params
+        '''
+        t0_weights = self.get_params()
+        t1_weights = [(w0+up) for up, w0 in zip(update, t0_weights)]
+        self.set_params(t1_weights)
+        # Refresh the latest_params and latest_updates attrs
+        self.refresh_latest_params_updates()
+        return self.latest_params
+
+    def refresh_latest_params_updates(self):
+        '''
+        Call this function to refresh the latest_params and latst_updates
+        Whenever the model change
+        '''
+        prev_params = self.latest_params
+        latest_params = self.get_params()
+        self.latest_updates = [(w1-w0) for w0, w1 in zip(prev_params, latest_params)]
+        self.latest_params = latest_params
     
     def test_locally(self):
         '''

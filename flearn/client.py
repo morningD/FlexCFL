@@ -7,14 +7,18 @@ Define the client of federated learning framework
 '''
 
 class Client(Actor):
-    def __init__(self, id, train_data={'x':[],'y':[]}, test_data={'x':[],'y':[]}, uplink=[], model=None):
+    def __init__(self, id, config, train_data={'x':[],'y':[]}, test_data={'x':[],'y':[]}, uplink=[], model=None):
         actor_type = 'client'
         super(Client, self).__init__(id, actor_type, train_data, test_data, model)
         if len(uplink) > 0:
             self.add_uplink(uplink)
         self.clustering = False # Is the client join the clustering proceudre.
         self.difference = [] # tuple of (group, diff) # Record the discrepancy between group and client
-        self.trainable, self.testable = False, False # Is this client can train or test
+        
+        # transfer client config to self
+        for key, val in config.items(): 
+            setattr(self, key, val)
+
         self.check_trainable()
         self.check_testable()     
 
@@ -27,15 +31,15 @@ class Client(Actor):
             self.trainable = True
             # The train size of client is the size of the local training dataset
             self.train_size = self.train_data['y'].shape[0]
-        return False
+        return self.trainable
     
     def check_testable(self):
         if self.test_data['y'].shape[0] > 0:
             self.testable = True
             self.test_size = self.test_data['y'].shape[0]
-        return False
+        return self.testable
 
-    def train(self, num_epoch=5):
+    def train(self):
         ''' 
         Train on local training dataset.
         Params:
@@ -47,7 +51,7 @@ class Client(Actor):
             updates = update of weights
         '''
         self.check_trainable()
-        num_samples, acc, loss, updates = self.solve_inner(num_epoch)
+        num_samples, acc, loss, updates = self.solve_inner(self.local_epochs, self.batch_size)
         return num_samples, acc[-1], loss[-1], updates
 
     def test(self):

@@ -11,14 +11,15 @@ class TrainConfig(object):
             'dataset': dataset,
             'model': model,
             'seed': 2077,
-            'num_round': 200,
+            'num_rounds': 200,
             'clients_per_round': 20,
-            'eval_every':1
+            'eval_every': 1
         }
 
         self.client_config = {
             # This is common config of client
             'local_epochs': 20,
+            # However, we compile lr to model, this setting will not be applied
             'learning_rate': 0.01,
             'batch_size': 10
         }

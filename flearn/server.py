@@ -21,6 +21,9 @@ class Server(Actor):
         return False
 
     def check_trainable(self):
+        '''
+        Check the server whether can be trained and refresh the train size
+        '''
         if self.has_downlink():
             self.train_size = 0
             self.trainable = False
@@ -30,8 +33,7 @@ class Server(Actor):
                     # Refresh the train size of server,
                     # It is the sum of the train size of all trainable donwlink nodes
                     self.train_size += node.train_size
-                    return True
-        return False
+        return self.trainable
 
     def check_testable(self):
         if self.has_downlink():
@@ -41,8 +43,7 @@ class Server(Actor):
                 if nodes.check_testable() == True:
                     self.testable = True
                     self.test_size += nodes.test_size
-                    return True
-        return False
+        return self.testable
 
     def refresh(self):
         '''
@@ -61,15 +62,26 @@ class Server(Actor):
         # Refresh the server
         self.refresh()
 
-    def train(self, selected_nodes=self.downlink):
+    def check_selected_trainable(self, selected_nodes):
+        ''' 
+        Check The selected nodes whether can be trained 
+        '''
+        nodes_trainable = False
+        for node in selected_nodes:
+            if node in self.downlink:
+                if node.check_trainable() == True:
+                    nodes_trainable = True
+                    break
+        return nodes_trainable
+
+    def train(self, selected_nodes):
         '''
         Train on downlink actors like groups and clients
         Return:
             results: 
                 list of list of training results ->[[result1], [result2], [result3], ...]
         '''
-        self.check_trainable() # Redundant check
-        if self.trainable == True and len(selected_nodes) > 0:
+        if self.check_selected_trainable(selected_nodes) == True:
             results = []
             for node in selected_nodes:
                 num_samples, train_acc, train_loss, updates = node.train()

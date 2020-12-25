@@ -74,6 +74,18 @@ class Server(Actor):
                     break
         return nodes_trainable
 
+    def check_selected_testable(self, selected_nodes):
+        ''' 
+        Check The selected nodes whether can be tested 
+        '''
+        nodes_testable = False
+        for node in selected_nodes:
+            if node in self.downlink:
+                if node.check_testable() == True:
+                    nodes_testable = True
+                    break
+        return nodes_testable
+
     def train(self, selected_nodes):
         '''
         Train on downlink actors like groups and clients
@@ -91,14 +103,13 @@ class Server(Actor):
             print('ERROR: This server has not training clients/groups with training data/clients')
             return
 
-    def test(self):
+    def test(self, selected_nodes):
         '''
-        Test on all downlink actors
+        Test on selected clients
         '''
-        self.check_testable() # Redundant check
-        if self.testable == True:
+        if self.check_selected_testable(selected_nodes) == True:
             results = []
-            for node in self.downlink:
+            for node in selected_nodes:
                 num_samples, test_acc, test_loss = node.test()
                 results.append([node, num_samples, test_acc, test_loss])
             return results

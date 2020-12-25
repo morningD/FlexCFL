@@ -18,9 +18,9 @@ class TrainConfig(object):
 
         self.client_config = {
             # This is common config of client
-            'local_epochs': 5,
-            # However, we compile lr to model, this setting will not be applied
-            'learning_rate': 0.01,
+            'local_epochs': 20,
+            # However, we compile lr to model
+            'learning_rate': 0.03,
             'batch_size': 10
         }
 

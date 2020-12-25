@@ -3,6 +3,9 @@ import importlib
 import tensorflow as tf
 import random
 import time
+from tensorflow.python.keras.backend import update
+
+from tensorflow.python.ops.gen_batch_ops import batch
 from utils.read_data import read_federated_data
 from utils.trainer_utils import TrainConfig
 #from flearn.model.mlp import construct_model
@@ -61,11 +64,13 @@ class FedAvg(object):
 
     def train(self):
         for round in range(self.num_rounds):
+
             # 0, Init time record
             train_time, test_time, agg_time = 0, 0, 0
 
             # 1, Random select clients
             selected_clients = self.select_clients(round)
+            #selected_clients = self.clients[:20] # DEBUG, only use first 20 clients to train
             
             # 2, Train selected clients
             start_time = time.time()
@@ -97,7 +102,8 @@ class FedAvg(object):
                 
                 if self.eval_locally == False:
                     # Test model on all clients,
-                    test_results = self.server.test()
+                    #test_results = self.server.test()
+                    test_results = self.server.test(selected_clients)
                 else:
                     # OR Test model on the server (Faster)
                     test_samples, test_acc, test_loss = self.server.test_locally()
@@ -174,3 +180,35 @@ class FedAvg(object):
             weighted_test_loss = _calculate_weighted_metric(test_losses, nks)
             print(f'Round {round}, Test ACC: {weighted_test_acc}, Test Loss: {weighted_test_loss}')
             return weighted_test_acc, weighted_test_loss
+
+    def train_locally(self, num_epoch=20, batch_size=10):
+        """
+            We can train and test model on server for comparsion or debugging reseason
+        """
+        # 1, We collect all data into server
+        print("Collect data.....")
+        server_test_data = {'x':[], 'y':[]}
+        server_train_data = {'x':[], 'y':[]}
+        for c in self.clients:
+            server_test_data['x'].append(c.test_data['x'])
+            server_test_data['y'].append(c.test_data['y'])
+            server_train_data['x'].append(c.train_data['x'])
+            server_train_data['y'].append(c.train_data['y'])
+        self.server.test_data['x'] = np.vstack(server_test_data['x'])
+        self.server.test_data['y'] = np.hstack(server_test_data['y'])
+        self.server.train_data['x'] = np.vstack(server_train_data['x'])
+        self.server.train_data['y'] = np.hstack(server_train_data['y'])
+
+        self.server.model.summary()
+
+        # 2, Server train locally
+        train_size, train_acc, train_loss, update = self.server.solve_inner(num_epoch, batch_size)
+        # 3, Server Apply update
+        self.server.apply_update(update)
+        # 4, Server test locally
+        test_size, test_acc, test_loss = self.server.test_locally()
+
+        # 5, Print result
+        print(f"Train size: {train_size} \n Train ACC: {train_acc} \n Train Loss: {train_loss}")
+        print(f"Test size: {test_size}, Test ACC: {test_acc}, Test Loss: {test_loss}")
+

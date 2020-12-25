@@ -5,5 +5,6 @@ def main():
     config = TrainConfig('mnist', 'cnn', 'fedavg')
     trainer = FedAvg(config)
     trainer.train()
+    #trainer.train_locally()
 
 main()

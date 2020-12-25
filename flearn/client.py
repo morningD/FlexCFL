@@ -51,8 +51,8 @@ class Client(Actor):
             updates = update of weights
         '''
         self.check_trainable()
-        num_samples, acc, loss, updates = self.solve_inner(self.local_epochs, self.batch_size)
-        return num_samples, acc[-1], loss[-1], updates
+        num_samples, acc, loss, update = self.solve_inner(self.local_epochs, self.batch_size)
+        return num_samples, acc[-1], loss[-1], update
 
     def test(self):
         '''

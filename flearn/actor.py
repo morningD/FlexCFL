@@ -13,6 +13,7 @@ class Actor(object):
         self.model = model # callable tf.keras.model
         self.actor_type = actor_type
         self.name = 'NULL'
+        # The latest model parameter and update of this actor
         self.latest_params, self.latest_updates = None, None
         # init train and test size to zero, it will depend on the actor type
         self.train_size, self.test_size = 0, 0 
@@ -24,10 +25,14 @@ class Actor(object):
         self.preprocess()
 
     def preprocess(self):
+        # Give the name of actor, for example, 'client01', 'group01'
         self.name = str(self.actor_type) + str(self.id)
+        # Initialize the latest model weights and updates
         self.latest_params = self.get_params()
         self.latest_updates = [np.zeros_like(ws) for ws in self.latest_params]
 
+    '''Return the parameters of global model instance
+    '''
     def get_params(self):
         if self.model:
             return self.model.get_weights()
@@ -105,17 +110,17 @@ class Actor(object):
         self.latest_updates = update
         self.latest_params = t1_weights
         return self.latest_params
-    """
-    def refresh_latest_params_updates(self):
+    
+    def fresh_latest_params_updates(self, update):
         '''
-        Call this function to refresh the latest_params and latst_updates
-        Whenever the model change
+        Call this function to fresh the latest_params and latst_updates
+        The update will not apply to self.model
         '''
         prev_params = self.latest_params
-        latest_params = self.get_params()
-        self.latest_updates = [(w1-w0) for w0, w1 in zip(prev_params, latest_params)]
+        latest_params = [(w0+up) for up, w0 in zip(update, prev_params)]
+        self.latest_updates = update
         self.latest_params = latest_params
-    """ 
+    
     def test_locally(self):
         '''
         Test the model on local test dataset
@@ -154,6 +159,40 @@ class Actor(object):
         self.uplink = [c for c in self.uplink - nodes if c not in nodes]
         return
 
+    def clear_uplink(self):
+        self.uplink.clear()
+        return
+
+    def clear_downlink(self):
+        self.downlink.clear()
+        return
+
+    def check_selected_trainable(self, selected_nodes):
+        ''' 
+        Check The selected nodes whether can be trained, and return valid trainable nodes
+        '''
+        nodes_trainable = False
+        valid_nodes = []
+        for node in selected_nodes:
+            if node in self.downlink:
+                if node.check_trainable() == True:
+                    nodes_trainable = True
+                    valid_nodes.append(node)
+        return nodes_trainable, valid_nodes
+
+    def check_selected_testable(self, selected_nodes):
+        ''' 
+        Check The selected nodes whether can be tested 
+        '''
+        nodes_testable = False
+        valid_nodes = []
+        for node in selected_nodes:
+            if node in self.downlink:
+                if node.check_testable() == True:
+                    nodes_testable = True
+                    valid_nodes.append(node)
+        return nodes_testable, valid_nodes
+
     # Train() and Test() depend on actor type
     def test(self):
         return
@@ -161,3 +200,8 @@ class Actor(object):
     def train(self):
         return
 
+    # trainable and testable depend on actor type
+    def check_trainable():
+        return
+    def check_testable():
+        return

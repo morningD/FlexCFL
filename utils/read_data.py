@@ -50,6 +50,9 @@ def read_fedprox_json(train_data_dir, test_data_dir):
 def read_mnist(train_data_dir, test_data_dir):
     return read_fedprox_json(train_data_dir, test_data_dir)
 
+def read_femnist(train_data_dir, test_data_dir):
+    return read_fedprox_json(train_data_dir, test_data_dir)
+
 def read_federated_data(dsname):
     clients = []
     train_data = {}
@@ -62,6 +65,8 @@ def read_federated_data(dsname):
 
     if dsname == 'mnist':
         clients, train_data, test_data = read_mnist(train_data_dir, test_data_dir)
+    if dsname == 'femnist':
+        clients, train_data, test_data = read_femnist(train_data_dir, test_data_dir)
     
     # Convert list to numpy array
     for c in train_data.keys():

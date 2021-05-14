@@ -3,9 +3,8 @@ import importlib
 import tensorflow as tf
 import random
 import time
-from tensorflow.python.keras.backend import update
+from termcolor import colored
 
-from tensorflow.python.ops.gen_batch_ops import batch
 from utils.read_data import read_federated_data
 from utils.trainer_utils import TrainConfig
 #from flearn.model.mlp import construct_model
@@ -63,19 +62,19 @@ class FedAvg(object):
             self.server.test_data['y'] = np.hstack(server_test_data['y'])
 
     def train(self):
-        for round in range(self.num_rounds):
+        for comm_round in range(self.num_rounds):
 
             # 0, Init time record
             train_time, test_time, agg_time = 0, 0, 0
 
             # 1, Random select clients
-            selected_clients = self.select_clients(round)
+            selected_clients = self.select_clients(comm_round)
             #selected_clients = self.clients[:20] # DEBUG, only use first 20 clients to train
             
             # 2, Train selected clients
             start_time = time.time()
             train_results = self.server.train(selected_clients)
-            train_time = time.time() - start_time
+            train_time = round(time.time() - start_time, 3)
             if train_results == None:
                 continue
             
@@ -86,7 +85,7 @@ class FedAvg(object):
             # 4, Aggregate these client acoording to number of samples (FedAvg)
             start_time = time.time()
             agg_updates = self.federated_averaging_aggregate(updates, nks)
-            agg_time = time.time() - start_time
+            agg_time = round(time.time() - start_time, 3)
             
             # 5, Apply update to the global model. All clients and sever share
             # the same model instance, so we just apply update to server and refresh
@@ -97,7 +96,7 @@ class FedAvg(object):
                 c.latest_updates = agg_updates
 
             # 6, Test the model every eval_every round
-            if round % self.eval_every == 0:
+            if comm_round % self.eval_every == 0:
                 start_time = time.time()
                 
                 if self.eval_locally == False:
@@ -109,17 +108,17 @@ class FedAvg(object):
                     test_samples, test_acc, test_loss = self.server.test_locally()
                     test_results = [[self.server, test_samples, test_acc, test_loss]]
 
-                test_time = time.time() - start_time
+                test_time = round(time.time() - start_time, 3)
                 # Summary this test
-                self.summary_results(round, test_results=test_results)
+                self.summary_results(comm_round, test_results=test_results)
 
             # 7, Summary this round of training
-            self.summary_results(round, train_results=train_results)
+            self.summary_results(comm_round, train_results=train_results)
 
             # 8, Print the train, aggregate, test time
-            print(f'Round: {round}, Training time: {train_time}, Test time: {test_time}, Aggregate time: {agg_time}.')
+            print(f'Round: {comm_round}, Training time: {train_time}, Test time: {test_time}, Aggregate time: {agg_time}')
     
-    def select_clients(self, round, num_clients=20):
+    def select_clients(self, comm_round, num_clients=20):
         '''selects num_clients clients weighted by number of samples from possible_clients
         
         Args:
@@ -132,7 +131,7 @@ class FedAvg(object):
         '''
 
         num_clients = min(num_clients, len(self.clients))
-        random.seed(round+self.seed)  # make sure for each comparison, we are selecting the same clients each round
+        random.seed(comm_round+self.seed)  # make sure for each comparison, we are selecting the same clients each round
         selected_clients = random.sample(self.clients, num_clients)
         random.seed(self.seed) # Restore the seed
         return selected_clients
@@ -158,27 +157,25 @@ class FedAvg(object):
 
         return agg_updates # -> list
 
-    def summary_results(self, round, train_results=None, test_results=None):
-        def _calculate_weighted_metric(metrics, nks):
-            normalws = np.array(nks) / np.sum(nks, dtype=np.float)
-            metric = np.sum(metrics*normalws)
-            return metric
+    def summary_results(self, comm_round, train_results=None, test_results=None):
 
         if train_results:
             nks = [rest[1] for rest in train_results]
             train_accs = [rest[2] for rest in train_results]
             train_losses = [rest[3] for rest in train_results]
-            weighted_train_acc = _calculate_weighted_metric(train_accs, nks)
-            weighted_train_loss = _calculate_weighted_metric(train_losses, nks)
-            print(f'Round {round}, Train ACC: {weighted_train_acc}, Train Loss: {weighted_train_loss}')
+            weighted_train_acc = np.average(train_accs, weights=nks)
+            weighted_train_loss = np.average(train_losses, weights=nks)
+            print(colored(f'Round {comm_round}, Train ACC: {round(weighted_train_acc, 4)},\
+                Train Loss: {round(weighted_train_loss, 4)}', 'blue', attrs=['reverse']))
             return weighted_train_acc, weighted_train_loss
         if test_results:
             nks = [rest[1] for rest in test_results]
             test_accs = [rest[2] for rest in test_results]
             test_losses = [rest[3] for rest in test_results]
-            weighted_test_acc = _calculate_weighted_metric(test_accs, nks)
-            weighted_test_loss = _calculate_weighted_metric(test_losses, nks)
-            print(f'Round {round}, Test ACC: {weighted_test_acc}, Test Loss: {weighted_test_loss}')
+            weighted_test_acc = np.average(test_accs, weights=nks)
+            weighted_test_loss = np.average(test_losses, weights=nks)
+            print(colored(f'Round {comm_round}, Test ACC: {round(weighted_test_acc, 4)},\
+                Test Loss: {round(weighted_test_loss, 4)}', 'red', attrs=['reverse']))
             return weighted_test_acc, weighted_test_loss
 
     def train_locally(self, num_epoch=20, batch_size=10):
@@ -208,7 +205,9 @@ class FedAvg(object):
         # 4, Server test locally
         test_size, test_acc, test_loss = self.server.test_locally()
 
-        # 5, Print result
-        print(f"Train size: {train_size} \n Train ACC: {train_acc} \n Train Loss: {train_loss}")
-        print(f"Test size: {test_size}, Test ACC: {test_acc}, Test Loss: {test_loss}")
+        # 5, Print result, we show the accuracy and loss of all training epochs
+        print(f"Train size: {train_size} Train ACC: {[round(acc, 4) for acc in train_acc]} \
+             Train Loss: {[round(loss, 4) for loss in train_loss]}")
+        print(colored(f"Test size: {test_size}, Test ACC: {round(test_acc, 4)}, \
+            Test Loss: {round(test_loss, 4)}", 'red', attrs=['reverse']))
 

@@ -26,6 +26,7 @@ class Client(Actor):
     def has_downlink(self):
         return False
 
+    # The client is trainable if it has local dataset
     def check_trainable(self):
         if self.train_data['y'].shape[0] > 0:
             self.trainable = True
@@ -43,7 +44,7 @@ class Client(Actor):
         ''' 
         Train on local training dataset.
         Params:
-            num_epoch: The number of local epoch
+            None
         Return: 
             num_sampes: number of training samples
             acc = training accuracy of last local epoch

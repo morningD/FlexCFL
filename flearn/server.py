@@ -20,6 +20,7 @@ class Server(Actor):
     def has_uplink(self):
         return False
 
+    # The server is trainable if it's downlink nodes are trainable
     def check_trainable(self):
         '''
         Check the server whether can be trained and refresh the train size
@@ -62,42 +63,26 @@ class Server(Actor):
         # Refresh the server
         self.refresh()
 
-    def check_selected_trainable(self, selected_nodes):
-        ''' 
-        Check The selected nodes whether can be trained 
-        '''
-        nodes_trainable = False
-        for node in selected_nodes:
-            if node in self.downlink:
-                if node.check_trainable() == True:
-                    nodes_trainable = True
-                    break
-        return nodes_trainable
-
-    def check_selected_testable(self, selected_nodes):
-        ''' 
-        Check The selected nodes whether can be tested 
-        '''
-        nodes_testable = False
-        for node in selected_nodes:
-            if node in self.downlink:
-                if node.check_testable() == True:
-                    nodes_testable = True
-                    break
-        return nodes_testable
-
     def train(self, selected_nodes):
         '''
         Train on downlink actors like groups and clients
+        Params:
+            selected_nodes: Train the selected clients.
         Return:
             results: 
                 list of list of training results ->[[result1], [result2], [result3], ...]
         '''
-        if self.check_selected_trainable(selected_nodes) == True:
+        trainable, valid_nodes = self.check_selected_trainable(selected_nodes)
+        if trainable == True:
             results = []
-            for node in selected_nodes:
-                num_samples, train_acc, train_loss, updates = node.train()
-                results.append([node, num_samples, train_acc, train_loss, updates])
+            if self.downlink[0].actor_type == 'group':
+                for group in self.downlink:
+                    group_num_samples, group_train_acc, group_train_loss, group_update = group.train(valid_nodes)
+                    results.append([group, group_num_samples, group_train_acc, group_train_loss, group_update])
+            if self.downlink[0].acotr_type == 'client':
+                for node in valid_nodes:
+                    num_samples, train_acc, train_loss, update = node.train()
+                    results.append([node, num_samples, train_acc, train_loss, update])
             return results
         else:
             print('ERROR: This server has not training clients/groups with training data/clients')
@@ -105,11 +90,12 @@ class Server(Actor):
 
     def test(self, selected_nodes):
         '''
-        Test on selected clients
+        Test on selected nodes
         '''
-        if self.check_selected_testable(selected_nodes) == True:
+        testable, valid_nodes = self.check_selected_testable(selected_nodes)
+        if testable == True:
             results = []
-            for node in selected_nodes:
+            for node in valid_nodes:
                 num_samples, test_acc, test_loss = node.test()
                 results.append([node, num_samples, test_acc, test_loss])
             return results

@@ -20,17 +20,19 @@ class TrainConfig(object):
             # This is common config of client
             'local_epochs': 20,
             # However, we compile lr to model
-            'learning_rate': 0.03,
+            'learning_rate': 0.003,
             'batch_size': 10
         }
 
         if trainer == 'fedgroup':
             self.trainer_config.update({
-                'num_group': 3
+                'num_group': 3,
+                'group_agg_lr': 0.01
             })
 
             self.group_config = {
-                'group_agg_lr': 0.01
+                'max_clients': 999,
+                'allow_empty': True
             }
         
         if trainer == 'splitfed':

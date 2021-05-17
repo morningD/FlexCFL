@@ -65,3 +65,9 @@ class Client(Actor):
         '''
         self.check_testable()
         return self.test_locally()
+
+    def pretrain(self, iterations):
+
+        num_samples, acc, loss, update = self.solve_iters(iterations, self.batch_size)
+
+        return num_samples, acc[-1], loss[-1], update

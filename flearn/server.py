@@ -72,21 +72,29 @@ class Server(Actor):
             results: 
                 list of list of training results ->[[result1], [result2], [result3], ...]
         '''
-        trainable, valid_nodes = self.check_selected_trainable(selected_nodes)
-        if trainable == True:
-            results = []
-            if self.downlink[0].actor_type == 'group':
-                for group in self.downlink:
-                    group_num_samples, group_train_acc, group_train_loss, group_update = group.train(valid_nodes)
-                    results.append([group, group_num_samples, group_train_acc, group_train_loss, group_update])
-            if self.downlink[0].acotr_type == 'client':
+        results = []
+        
+        if self.downlink[0].actor_type == 'client':
+            # Check the trainable of selected clients
+            trainable, valid_nodes = self.check_selected_trainable(selected_nodes)
+            if trainable == True:
                 for node in valid_nodes:
                     num_samples, train_acc, train_loss, update = node.train()
                     results.append([node, num_samples, train_acc, train_loss, update])
-            return results
-        else:
+        
+        elif self.downlink[0].actor_type == 'group':
+            # Check the trainable of all groups
+            trainable, valid_nodes = self.check_selected_trainable(self.downlink)
+            if trainable == True:
+                for group in valid_nodes:
+                    group_num_samples, group_train_acc, group_train_loss, group_update = group.train(selected_nodes)
+                    results.append([group, group_num_samples, group_train_acc, group_train_loss, group_update])
+        
+        if results == []:
             print('ERROR: This server has not training clients/groups with training data/clients')
             return
+        return results
+            
 
     def test(self, selected_nodes):
         '''

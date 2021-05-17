@@ -1,5 +1,8 @@
 import numpy as np
+from numpy.core import numeric
 import tensorflow as tf
+
+from math import ceil
 
 '''
 Define the base actor of federated learning framework
@@ -96,6 +99,54 @@ class Actor(object):
             # Return 0,0,0 and all zero updates [0, 0, ...],
             # if this actor has not training set
             return 0, [0], [0], [np.zeros_like(ws) for ws in self.latest_params]
+
+    def solve_iters(self, num_iters=1, batch_size=10):
+
+        def batch_data_multiple_iters(data, batch_size, num_iters):
+            data_x = data['x']
+            data_y = data['y']
+            data_size = data_x.shape[0]
+
+            random_idx = np.arange(data_size)
+            np.random.shuffle(random_idx)
+            # Shuffle the features and labels
+            data_x, data_y = data_x[random_idx], data_y[random_idx]
+            max_iter = ceil(data_size / batch_size)
+
+            for iter in range(num_iters):
+                round_step = (iter+1) % max_iter # round_step: 1, 2, ..., max_iter-1, 0
+                if round_step == 0:
+                    # Exceed 1 epoch
+                    x_part1, y_part1 = data_x[(max_iter-1)*batch_size: data_size], \
+                        data_y[(max_iter-1)*batch_size: data_size]
+                    # Shuffle dataset before we get the next part
+                    np.random.shuffle(random_idx)
+                    data_x, data_y = data_x[random_idx], data_y[random_idx]
+                    x_part2, y_part2 = data_x[0: max_iter*batch_size%data_size], \
+                        data_y[0: max_iter*batch_size%data_size]
+
+                    batched_x = np.vstack([x_part1, x_part2])
+                    batched_y = np.hstack([y_part1, y_part2])  
+                else:
+                    batched_x = data_x[(round_step-1)*batch_size: round_step*batch_size]
+                    batched_y = data_y[(round_step-1)*batch_size: round_step*batch_size]
+
+                yield (batched_x, batched_y)
+
+        num_samples = self.train_data['y'].shape[0]      
+        t0_weights = self.get_params()
+        train_results = []
+        for X, y in batch_data_multiple_iters(self.train_data, batch_size, num_iters):
+            train_results.append(self.model.train_on_batch(X, y))
+        t1_weights = self.get_params()
+        # Roll-back the weights of model
+        self.set_params(t0_weights)
+        # Calculate the updates
+        update = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
+        train_acc = [rest[1] for rest in train_results]
+        train_loss = [rest[0] for rest in train_results]
+        
+        return num_samples, train_acc, train_loss, update
 
     def apply_update(self, update):
         '''

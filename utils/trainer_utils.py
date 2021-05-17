@@ -1,3 +1,5 @@
+import numpy as np
+
 '''
     Define the config of trainer,
     The type of trainer contain: fedavg, fedgroup, splitfed, splitfg
@@ -13,7 +15,8 @@ class TrainConfig(object):
             'seed': 2077,
             'num_rounds': 200,
             'clients_per_round': 20,
-            'eval_every': 1
+            'eval_every': 1,
+            'eval_locally': True
         }
 
         self.client_config = {
@@ -27,7 +30,8 @@ class TrainConfig(object):
         if trainer == 'fedgroup':
             self.trainer_config.update({
                 'num_group': 3,
-                'group_agg_lr': 0.01
+                'group_agg_lr': 0.01,
+                'eval_global_model': True
             })
 
             self.group_config = {
@@ -41,3 +45,5 @@ class TrainConfig(object):
         if trainer == 'splitfg':
             #TODO:
             pass
+
+        

@@ -14,7 +14,7 @@ class Client(Actor):
             self.add_uplink(uplink)
         self.clustering = False # Is the client join the clustering proceudre.
         self.difference = [] # tuple of (group, diff) # Record the discrepancy between group and client
-        
+
         # transfer client config to self
         for key, val in config.items(): 
             setattr(self, key, val)

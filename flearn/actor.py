@@ -18,6 +18,8 @@ class Actor(object):
         self.name = 'NULL'
         # The latest model parameter and update of this actor
         self.latest_params, self.latest_updates = None, None
+        # The latest local training solution of this actor
+        self.local_soln = None
         # init train and test size to zero, it will depend on the actor type
         self.train_size, self.test_size = 0, 0 
         self.uplink, self.downlink = [], [] # init to empty, depend on the actor type
@@ -31,7 +33,7 @@ class Actor(object):
         # Give the name of actor, for example, 'client01', 'group01'
         self.name = str(self.actor_type) + str(self.id)
         # Initialize the latest model weights and updates
-        self.latest_params = self.get_params()
+        self.latest_params, self.local_soln = self.get_params(), self.get_params()
         self.latest_updates = [np.zeros_like(ws) for ws in self.latest_params]
 
     '''Return the parameters of global model instance
@@ -45,7 +47,8 @@ class Actor(object):
         # But the latest_params and latest_updates will not be refreshed
         if self.model:
             self.model.set_weights(weights)
-            
+
+    """     
     def solve_gradients(self, num_epoch=1, batch_size=10):
         '''
         Solve the local optimization base on local training data, 
@@ -66,6 +69,7 @@ class Actor(object):
             # Return 0 and all zero gradients [0, 0, ...],
             # if this actor has not training set
             return 0, [np.zeros_like(ws) for ws in self.latest_updates]
+    """
 
     def solve_inner(self, num_epoch=1, batch_size=10):
         '''
@@ -78,14 +82,19 @@ class Actor(object):
         if self.train_data['y'].shape[0] > 0:
             X, y_true = self.train_data['x'], self.train_data['y']
             num_samples = y_true.shape[0]
+            # Backup the current model params
+            backup_params = self.get_params()
             # Confirm model params is euqal to latest params
-            t0_weights = self.get_params()
+            t0_weights = self.latest_params
+            self.set_params(t0_weights)
             # Use model.fit() to train model
             history = self.model.fit(X, y_true, batch_size, num_epoch, verbose=0)
             t1_weights = self.get_params()
             
-            # Roll-back the weights of model
-            self.set_params(t0_weights)
+            # Roll-back the weights of current model
+            self.set_params(backup_params)
+            # Store the latest local solution params
+            self.local_soln = t1_weights
             # Calculate the updates
             update = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
             # Get the train accuracy and train loss
@@ -131,14 +140,18 @@ class Actor(object):
 
                 yield (batched_x, batched_y)
 
-        num_samples = self.train_data['y'].shape[0]      
-        t0_weights = self.get_params()
+        num_samples = self.train_data['y'].shape[0]
+        backup_params = self.get_params()
+        t0_weights = self.latest_params
+        self.set_params(t0_weights)
         train_results = []
         for X, y in batch_data_multiple_iters(self.train_data, batch_size, num_iters):
             train_results.append(self.model.train_on_batch(X, y))
         t1_weights = self.get_params()
         # Roll-back the weights of model
-        self.set_params(t0_weights)
+        self.set_params(backup_params)
+        # Store the latest local solution
+        self.local_soln = t1_weights
         # Calculate the updates
         update = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
         train_acc = [rest[1] for rest in train_results]
@@ -172,11 +185,17 @@ class Actor(object):
     
     def test_locally(self):
         '''
-        Test the model on local test dataset
+        Test the model (self.latest_params) on local test dataset
         '''
         if self.test_data['y'].shape[0] > 0:
+            # Backup the current model params
+            backup_params = self.get_params()
+            # Set the current model to actor's params
+            self.set_params(self.latest_params)
             X, y_true = self.test_data['x'], self.test_data['y']
             loss, acc = self.model.evaluate(X, y_true, verbose=0)
+            # Recover the model
+            self.set_params(backup_params)
             return self.test_data['y'].shape[0], acc, loss
         else:
             return 0, 0, 0

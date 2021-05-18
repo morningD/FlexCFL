@@ -31,7 +31,11 @@ class TrainConfig(object):
             self.trainer_config.update({
                 'num_group': 3,
                 'group_agg_lr': 0.01,
-                'eval_global_model': True
+                'eval_global_model': True,
+                'pretrain_scale': 20,
+                'measure': 'EDC', # {EDC, MADC}
+                'RAC': False,
+                'RCC': False
             })
 
             self.group_config = {
@@ -46,4 +50,17 @@ class TrainConfig(object):
             #TODO:
             pass
 
-        
+def process_grad(grads):
+    '''
+    Args:
+        grads: grad 
+    Return:
+        a flattened grad in numpy (1-D array)
+    '''
+
+    client_grads = grads[0] # shape = (784, 10)
+    for i in range(1, len(grads)):
+        client_grads = np.append(client_grads, grads[i]) # output a flattened array
+        # (784, 10) append (10,)
+
+    return client_grads

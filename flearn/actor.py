@@ -92,8 +92,6 @@ class Actor(object):
             #print(history.history) # Debug
             train_acc = history.history['accuracy']
             train_loss = history.history['loss']
-            #print(train_acc) # Debug
-            
             return num_samples, train_acc, train_loss, update
         else:
             # Return 0,0,0 and all zero updates [0, 0, ...],
@@ -146,7 +144,7 @@ class Actor(object):
         train_acc = [rest[1] for rest in train_results]
         train_loss = [rest[0] for rest in train_results]
         
-        return num_samples, train_acc, train_loss, update
+        return num_samples, train_acc, train_loss, t1_weights, update
 
     def apply_update(self, update):
         '''
@@ -194,20 +192,32 @@ class Actor(object):
         return False
 
     def add_downlink(self, nodes):
-        # Note: The repetitive node is not allow
-        self.downlink = list(set(self.downlink + nodes))
+        if isinstance(nodes, list):
+            # Note: The repetitive node is not allow
+            self.downlink = list(set(self.downlink + nodes))
+        if isinstance(nodes, Actor):
+            self.downlink = list(set(self.downlink + [nodes]))
         return
 
     def add_uplink(self, nodes):
-        self.uplink = list(set(self.uplink + nodes))
+        if isinstance(nodes, list):
+            self.uplink = list(set(self.uplink + nodes))
+        if isinstance(nodes, Actor):
+            self.uplink = list(set(self.uplink + [nodes]))
         return
     
     def delete_downlink(self, nodes):
-        self.downlink = [c for c in self.downlink if c not in nodes]
+        if isinstance(nodes, list):
+            self.downlink = [c for c in self.downlink if c not in nodes]
+        if isinstance(nodes, Actor):
+            self.downlink.remove(nodes)
         return
 
     def delete_uplink(self, nodes):
-        self.uplink = [c for c in self.uplink - nodes if c not in nodes]
+        if isinstance(nodes, list):
+            self.uplink = [c for c in self.uplink - nodes if c not in nodes]
+        if isinstance(nodes, Actor):
+            self.downlink.remove(nodes)
         return
 
     def clear_uplink(self):
@@ -216,6 +226,11 @@ class Actor(object):
 
     def clear_downlink(self):
         self.downlink.clear()
+        return
+
+    def set_uplink(self, nodes):
+        self.clear_uplink()
+        self.add_uplink(nodes)
         return
 
     def check_selected_trainable(self, selected_nodes):

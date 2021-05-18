@@ -32,6 +32,7 @@ class Client(Actor):
             self.trainable = True
             # The train size of client is the size of the local training dataset
             self.train_size = self.train_data['y'].shape[0]
+
         return self.trainable
     
     def check_testable(self):
@@ -66,8 +67,13 @@ class Client(Actor):
         self.check_testable()
         return self.test_locally()
 
-    def pretrain(self, iterations):
+    def pretrain(self, iterations=20):
 
-        num_samples, acc, loss, update = self.solve_iters(iterations, self.batch_size)
+        num_samples, acc, loss, soln, update = self.solve_iters(iterations, self.batch_size)
 
-        return num_samples, acc[-1], loss[-1], update
+        return num_samples, acc[-1], loss[-1], soln, update
+
+    def update_difference(self, diff_list):
+        self.difference.clear()
+        self.difference += diff_list
+        return

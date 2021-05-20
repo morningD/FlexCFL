@@ -1,6 +1,4 @@
 import numpy as np
-from numpy.core import numeric
-import tensorflow as tf
 
 from math import ceil
 
@@ -101,7 +99,8 @@ class Actor(object):
             #print(history.history) # Debug
             train_acc = history.history['accuracy']
             train_loss = history.history['loss']
-            return num_samples, train_acc, train_loss, update
+            #print('actor.py:104', train_acc) # DEBUG
+            return num_samples, train_acc, train_loss, t1_weights, update
         else:
             # Return 0,0,0 and all zero updates [0, 0, ...],
             # if this actor has not training set
@@ -112,7 +111,7 @@ class Actor(object):
         def batch_data_multiple_iters(data, batch_size, num_iters):
             data_x = data['x']
             data_y = data['y']
-            data_size = data_x.shape[0]
+            data_size = data_y.shape[0]
 
             random_idx = np.arange(data_size)
             np.random.shuffle(random_idx)

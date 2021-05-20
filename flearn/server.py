@@ -74,7 +74,7 @@ class Server(Actor):
         '''
         results = []
         
-        if self.downlink[0].actor_type == 'client':
+        if self.downlink[0].actor_type == 'client': # i.e. FedAvg
             # Check the trainable of selected clients
             trainable, valid_nodes = self.check_selected_trainable(selected_nodes)
             if trainable == True:
@@ -82,11 +82,12 @@ class Server(Actor):
                     num_samples, train_acc, train_loss, update = node.train()
                     results.append([node, num_samples, train_acc, train_loss, update])
         
-        elif self.downlink[0].actor_type == 'group':
+        elif self.downlink[0].actor_type == 'group': # i.e. FedGroup
             # Check the trainable of all groups
             trainable, valid_nodes = self.check_selected_trainable(self.downlink)
             if trainable == True:
                 for group in valid_nodes:
+                    # The server will not boardcast the model
                     group_num_samples, group_train_acc, group_train_loss, group_update = group.train(selected_nodes)
                     results.append([group, group_num_samples, group_train_acc, group_train_loss, group_update])
         

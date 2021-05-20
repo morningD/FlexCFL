@@ -10,12 +10,14 @@ from utils.trainer_utils import TrainConfig
 #from flearn.model.mlp import construct_model
 from flearn.server import Server
 from flearn.client import Client
+from utils.export_result import ResultWriter
 
 class FedAvg(object):
     def __init__(self, train_config):
         # Transfer trainer config to self, we save the configurations by this trick
         for key, val in train_config.trainer_config.items(): 
             setattr(self, key, val)
+        self.trainer_type = train_config.trainer_type
         # Get the config of client
         self.client_config = train_config.client_config
         # Evaluate model on all clients or on this server
@@ -29,6 +31,9 @@ class FedAvg(object):
         # Construct the actors
         self.clients = None
         self.construct_actors()
+
+        # Create results writer
+        self.writer = ResultWriter(train_config)
 
     def construct_actors(self):
         # 1, Read dataset
@@ -71,32 +76,41 @@ class FedAvg(object):
             selected_clients = self.select_clients(comm_round)
             #selected_clients = self.clients[:20] # DEBUG, only use first 20 clients to train
             
-            # 2, Train selected clients
+            # 2, The server boardcasts the model to clients
+            for c in selected_clients:
+                c.latest_params = self.server.latest_params
+
+            # 3, Train selected clients
             start_time = time.time()
             train_results = self.server.train(selected_clients)
             train_time = round(time.time() - start_time, 3)
             if train_results == None:
                 continue
             
-            # 3, Get model updates (list) and number of samples (list) of clients
+            # 4, Summary this round of training
+            num_train_clients, weighted_train_acc, weighted_train_loss = self.summary_results(comm_round, train_results=train_results)
+
+            # 5, Get model updates (list) and number of samples (list) of clients
             nks = [rest[1] for rest in train_results] # -> list
             updates = [rest[4] for rest in train_results] # -> list
             
-            # 4, Aggregate these client acoording to number of samples (FedAvg)
+            # 6, Aggregate these client acoording to number of samples (FedAvg)
             start_time = time.time()
             agg_updates = self.federated_averaging_aggregate(updates, nks)
             agg_time = round(time.time() - start_time, 3)
             
-            # 5, Apply update to the global model. All clients and sever share
+            # 7, Apply update to the global model. All clients and sever share
             # the same model instance, so we just apply update to server and refresh
-            # the latest_params and lastest_updates for all clients.
+            # the latest_params and lastest_updates for selected clients. 
+            # Calculate the discrepancy between the global model and client model 
             self.server.apply_update(agg_updates)
-            for c in self.server.downlink:
+            for c in selected_clients:
                 c.latest_params = self.server.latest_params
                 c.latest_updates = agg_updates
+                c.update_difference()
 
-            # 6, Test the model every eval_every round
-            if comm_round % self.eval_every == 0:
+            # 8, Test the model every eval_every round and the last round
+            if comm_round % self.eval_every == 0 or comm_round== self.num_rounds:
                 start_time = time.time()
                 
                 if self.eval_locally == False:
@@ -110,12 +124,12 @@ class FedAvg(object):
 
                 test_time = round(time.time() - start_time, 3)
                 # Summary this test
-                self.summary_results(comm_round, test_results=test_results)
+                _, weighted_test_acc, weighted_test_loss = self.summary_results(comm_round, test_results=test_results)
+                # Write this evalution result ot file
+                self.writer.write_fedavg(comm_round, [weighted_test_acc, weighted_train_acc, weighted_train_loss, \
+                    num_train_clients, self.calculate_mean_discrepancy(selected_clients)])
 
-            # 7, Summary this round of training
-            self.summary_results(comm_round, train_results=train_results)
-
-            # 8, Print the train, aggregate, test time
+            # 9, Print the train, aggregate, test time
             print(f'Round: {comm_round}, Training time: {train_time}, Test time: {test_time}, Aggregate time: {agg_time}')
     
     def select_clients(self, comm_round, num_clients=20):
@@ -161,22 +175,24 @@ class FedAvg(object):
 
         if train_results:
             nks = [rest[1] for rest in train_results]
+            num_clients = len(nks)
             train_accs = [rest[2] for rest in train_results]
             train_losses = [rest[3] for rest in train_results]
             weighted_train_acc = np.average(train_accs, weights=nks)
             weighted_train_loss = np.average(train_losses, weights=nks)
             print(colored(f'Round {comm_round}, Train ACC: {round(weighted_train_acc, 4)},\
                 Train Loss: {round(weighted_train_loss, 4)}', 'blue', attrs=['reverse']))
-            return weighted_train_acc, weighted_train_loss
+            return num_clients, weighted_train_acc, weighted_train_loss
         if test_results:
             nks = [rest[1] for rest in test_results]
+            num_clients = len(nks)
             test_accs = [rest[2] for rest in test_results]
             test_losses = [rest[3] for rest in test_results]
             weighted_test_acc = np.average(test_accs, weights=nks)
             weighted_test_loss = np.average(test_losses, weights=nks)
             print(colored(f'Round {comm_round}, Test ACC: {round(weighted_test_acc, 4)},\
                 Test Loss: {round(weighted_test_loss, 4)}', 'red', attrs=['reverse']))
-            return weighted_test_acc, weighted_test_loss
+            return num_clients, weighted_test_acc, weighted_test_loss
 
     def train_locally(self, num_epoch=20, batch_size=10):
         """
@@ -211,3 +227,6 @@ class FedAvg(object):
         print(colored(f"Test size: {test_size}, Test ACC: {round(test_acc, 4)}, \
             Test Loss: {round(test_loss, 4)}", 'red', attrs=['reverse']))
 
+    def calculate_mean_discrepancy(self, clients):
+        discrepancy = [c.difference for c in clients]
+        return np.mean(discrepancy)

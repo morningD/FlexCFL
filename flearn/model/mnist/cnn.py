@@ -33,4 +33,4 @@ def construct_model(trainer_type, lr):
     if trainer_type == 'fedavg':
         return _construct_client_model(lr)
     else:
-        return
+        return _construct_client_model(lr)

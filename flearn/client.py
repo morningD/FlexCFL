@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from flearn.actor import Actor
+from utils.trainer_utils import process_grad
 
 '''
 Define the client of federated learning framework
@@ -53,7 +54,7 @@ class Client(Actor):
             updates = update of weights
         '''
         self.check_trainable()
-        num_samples, acc, loss, update = self.solve_inner(self.local_epochs, self.batch_size)
+        num_samples, acc, loss, soln, update = self.solve_inner(self.local_epochs, self.batch_size)
         return num_samples, acc[-1], loss[-1], update
 
     def test(self):
@@ -67,13 +68,21 @@ class Client(Actor):
         self.check_testable()
         return self.test_locally()
 
-    def pretrain(self, iterations=20):
+    def pretrain(self, iterations=50):
 
         num_samples, acc, loss, soln, update = self.solve_iters(iterations, self.batch_size)
+        #num_samples, acc, loss, soln, update = self.solve_inner(1, self.batch_size)
 
         return num_samples, acc[-1], loss[-1], soln, update
 
-    def update_difference(self, diff_list):
+    def update_difference(self):
+        def _calculate_l2_distance(m1, m2):
+            v1, v2 = process_grad(m1), process_grad(m2)
+            l2d = np.sum((v1-v2)**2)**0.5
+            return l2d
+
         self.difference.clear()
-        self.difference += diff_list
+        # Only calcuate the discrepancy between this client and first uplink    
+        diff = _calculate_l2_distance(self.local_soln, self.uplink[0].latest_params)
+        self.difference.append(diff)
         return

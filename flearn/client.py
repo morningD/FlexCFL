@@ -14,7 +14,7 @@ class Client(Actor):
         if len(uplink) > 0:
             self.add_uplink(uplink)
         self.clustering = False # Is the client join the clustering proceudre.
-        self.difference = [] # tuple of (group, diff) # Record the discrepancy between group and client
+        self.difference = 0 # The discrepancy between this client and its first uplink node
 
         # transfer client config to self
         for key, val in config.items(): 
@@ -81,8 +81,6 @@ class Client(Actor):
             l2d = np.sum((v1-v2)**2)**0.5
             return l2d
 
-        self.difference.clear()
         # Only calcuate the discrepancy between this client and first uplink    
-        diff = _calculate_l2_distance(self.local_soln, self.uplink[0].latest_params)
-        self.difference.append(diff)
+        self.difference = _calculate_l2_distance(self.local_soln, self.uplink[0].latest_params)
         return

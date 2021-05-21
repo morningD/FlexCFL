@@ -110,7 +110,7 @@ class FedAvg(object):
                 c.update_difference()
 
             # 8, Test the model every eval_every round and the last round
-            if comm_round % self.eval_every == 0 or comm_round== self.num_rounds:
+            if comm_round % self.eval_every == 0 or comm_round == self.num_rounds-1:
                 start_time = time.time()
                 
                 if self.eval_locally == False:
@@ -126,7 +126,7 @@ class FedAvg(object):
                 # Summary this test
                 _, weighted_test_acc, weighted_test_loss = self.summary_results(comm_round, test_results=test_results)
                 # Write this evalution result ot file
-                self.writer.write_fedavg(comm_round, [weighted_test_acc, weighted_train_acc, weighted_train_loss, \
+                self.writer.write_row(comm_round, [weighted_test_acc, weighted_train_acc, weighted_train_loss, \
                     num_train_clients, self.calculate_mean_discrepancy(selected_clients)])
 
             # 9, Print the train, aggregate, test time

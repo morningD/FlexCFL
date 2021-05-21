@@ -185,6 +185,7 @@ class Actor(object):
     def test_locally(self):
         '''
         Test the model (self.latest_params) on local test dataset
+        Return: Number of test samples, test accuracy, test loss
         '''
         if self.test_data['y'].shape[0] > 0:
             # Backup the current model params

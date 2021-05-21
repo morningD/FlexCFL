@@ -3,9 +3,9 @@ from flearn.trainer.fedavg import FedAvg
 from flearn.trainer.fedgroup import FedGroup
 
 def main():
-    config = TrainConfig('mnist', 'mclr', 'fedavg')
+    config = TrainConfig('mnist', 'mclr', 'fedgroup')
     config.client_config['learning_rate'] = 0.01
-    trainer = FedAvg(config)
+    trainer = FedGroup(config)
     trainer.train()
     #trainer.train_locally()
 

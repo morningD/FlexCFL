@@ -14,7 +14,7 @@ class TrainConfig(object):
             'dataset': dataset,
             'model': model,
             'seed': 2077,
-            'num_rounds': 200,
+            'num_rounds': 300,
             'clients_per_round': 20,
             'eval_every': 1,
             'eval_locally': True
@@ -25,7 +25,8 @@ class TrainConfig(object):
             'local_epochs': 10,
             # However, we compile lr to model
             'learning_rate': 0.003,
-            'batch_size': 10
+            'batch_size': 10,
+            'temperature': 5 # The dynamic strategy of FedGroup
         }
 
         if trainer == 'fedgroup':
@@ -36,28 +37,42 @@ class TrainConfig(object):
                 'pretrain_scale': 20,
                 'measure': 'EDC', # {EDC, MADC}
                 'RAC': False,
-                'RCC': False
+                'RCC': False,
+                'dynamic': True
+            })
+            
+        if trainer == 'fesem' or 'ifca':
+            self.trainer_config.update({
+                'num_group': 3,
+                # The iter-group aggregation is disabled
+                'group_agg_lr': 0.0,
+                'eval_global_model': False
             })
 
             self.group_config = {
                 'max_clients': 999,
                 'allow_empty': True
             }
-
-            # The file name of training results
         
         if self.trainer_config['dataset'] == 'femnist':
             self.client_config.update({'learning_rate': 0.003})
             self.trainer_config.update({'num_group': 5})
-        if self.trainer_config['dataset'] == 'mnist':
+
+        if self.trainer_config['dataset'].startswith('mnist'):
             self.client_config.update({'learning_rate': 0.03})
             self.trainer_config.update({'num_group': 3})
+
         if self.trainer_config['dataset'] == 'sent140':
             self.client_config.update({'learning_rate': 0.3})
             self.trainer_config.update({'num_group': 5})
-        if self.trainer_config['dataset'] == 'synthetic':
+
+        if self.trainer_config['dataset'].startswith('synthetic'):
             self.client_config.update({'learning_rate': 0.01})
             self.trainer_config.update({'num_group': 5})
+
+        if self.trainer_config['dataset'] == 'fmnist':
+            self.client_config.update({'learning_rate': 0.05})
+            self.trainer_config.update({'num_group': 3})
         
         if trainer == 'splitfed':
             #TODO:

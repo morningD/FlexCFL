@@ -20,6 +20,8 @@ class Client(Actor):
         for key, val in config.items(): 
             setattr(self, key, val)
 
+        self.max_temp = self.temperature # Save the max temperature
+
         self.check_trainable()
         self.check_testable()     
 

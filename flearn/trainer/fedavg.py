@@ -45,6 +45,8 @@ class FedAvg(object):
         self.model_loader = importlib.import_module(model_path).construct_model
         # Construct the model
         client_model = self.model_loader('fedavg', self.client_config['learning_rate'])
+        # *Print the summary of model
+        client_model.summary()
 
         # 3, Construct server
         self.server = Server(model=client_model)
@@ -194,7 +196,7 @@ class FedAvg(object):
                 Test Loss: {round(weighted_test_loss, 4)}', 'red', attrs=['reverse']))
             return num_clients, weighted_test_acc, weighted_test_loss
 
-    def train_locally(self, num_epoch=20, batch_size=10):
+    def train_locally(self, num_epoch=100, batch_size=10):
         """
             We can train and test model on server for comparsion or debugging reseason
         """
@@ -215,7 +217,7 @@ class FedAvg(object):
         self.server.model.summary()
 
         # 2, Server train locally
-        train_size, train_acc, train_loss, update = self.server.solve_inner(num_epoch, batch_size)
+        train_size, train_acc, train_loss, _, update = self.server.solve_inner(num_epoch, batch_size)
         # 3, Server Apply update
         self.server.apply_update(update)
         # 4, Server test locally

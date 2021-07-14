@@ -21,5 +21,3 @@ def construct_model(trainer_type, lr=0.03):
         return _construct_client_model(lr)
     else:
         return _construct_client_model(lr)
-
-    # TODO:

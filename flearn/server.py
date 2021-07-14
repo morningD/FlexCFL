@@ -1,5 +1,6 @@
 import numpy as np
 from flearn.actor import Actor
+import tensorflow as tf
 
 '''
 Define the server of federated learning framework

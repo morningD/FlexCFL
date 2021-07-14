@@ -53,27 +53,38 @@ def read_mnist(train_data_dir, test_data_dir):
 def read_femnist(train_data_dir, test_data_dir):
     return read_fedprox_json(train_data_dir, test_data_dir)
 
+def read_fmnist(train_data_dir, test_data_dir):
+    return read_fedprox_json(train_data_dir, test_data_dir)
+
 def read_federated_data(dsname):
     clients = []
     train_data = {}
     test_data = {}
+    train_size, test_size = 0, 0
     wspath = Path(__file__).parent.parent.absolute() # The working path of SplitGP
     # The training data directory
     train_data_dir = Path.joinpath(wspath, 'data', dsname, 'data', 'train').absolute()
     # The testing data directory
     test_data_dir = Path.joinpath(wspath, 'data', dsname, 'data', 'test').absolute()
 
-    if dsname == 'mnist':
+    if dsname.startswith('mnist'):
         clients, train_data, test_data = read_mnist(train_data_dir, test_data_dir)
     if dsname == 'femnist':
         clients, train_data, test_data = read_femnist(train_data_dir, test_data_dir)
+    if dsname == 'fmnist':
+        clients, train_data, test_data = read_fmnist(train_data_dir, test_data_dir)
     
     # Convert list to numpy array
     for c in train_data.keys():
         train_data[c]['x'] = np.array(train_data[c]['x']) # shape=(num_samples, num_features)
         train_data[c]['y'] = np.array(train_data[c]['y']) # shape=(num_samples, )
+        train_size += train_data[c]['y'].shape[0]
     for c in test_data.keys():
         test_data[c]['x'] = np.array(test_data[c]['x'])
         test_data[c]['y'] = np.array(test_data[c]['y'])
+        test_size += test_data[c]['y'].shape[0]
         
+    # Print the size of this dataset and client count
+    print(f'The dataset size: {train_size + test_size}, train size: {train_size}, test size: {test_size}.')
+    print(f'The train client count: {len(train_data)}. The test client count: {len(test_data)}.')
     return clients, train_data, test_data

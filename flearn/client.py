@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from flearn.actor import Actor
-from utils.trainer_utils import process_grad
+from utils.trainer_utils import process_grad, calculate_cosine_dissimilarity
 
 '''
 Define the client of federated learning framework
@@ -14,7 +14,10 @@ class Client(Actor):
         if len(uplink) > 0:
             self.add_uplink(uplink)
         self.clustering = False # Is the client join the clustering proceudre.
-        self.difference = 0 # The discrepancy between this client and its first uplink node
+        self.discrepancy = 0 # The discrepancy between this client and its first uplink node
+        # The cosine dissimilarity between this client and its first uplink node
+        # Cosine Dissimilarity, definition: (1-cosine) / 2
+        self.cosine_dissimilarity = 0 
 
         # transfer client config to self
         for key, val in config.items(): 
@@ -22,8 +25,7 @@ class Client(Actor):
 
         self.max_temp = self.temperature # Save the max temperature
 
-        self.check_trainable()
-        self.check_testable()     
+        self.refresh()   
 
     # The client is the end point of FL framework 
     def has_downlink(self):
@@ -59,24 +61,49 @@ class Client(Actor):
         num_samples, acc, loss, soln, update = self.solve_inner(self.local_epochs, self.batch_size)
         return num_samples, acc[-1], loss[-1], update
 
-    def test(self):
+    def test(self, from_uplink=False):
         '''
         Test on local test dataset
+        Argument: from_uplink indicates the evalutation is based on the model of first uplink node.
+        if from_uplink=False, the test is based on its latest_params.
         Return:
             num_samples: number of testing samples
             acc = test accuracy
             loss = test loss
         '''
         self.check_testable()
-        return self.test_locally()
+        if from_uplink == True:
+            if len(self.uplink) == 0: 
+                print(f'Warning: Node {self.id} does not have an uplink model for testing.')
+                return 0, 0, 0
+            
+            # Temporarily set client's latest_params to first uplink's latest_params
+            backup_params = self.latest_params
+            self.latest_params = self.uplink[0].latest_params
+            test_result = self.test_locally()
+            # Reset client's latest_params
+            self.latest_params = backup_params
+        else:
+            # Test on client's params
+            test_result = self.test_locally()
+        return test_result
 
-    def pretrain(self, iterations=50):
-
+    ''' Pretrain this client based on model_params,
+        Note: the latest_params and latest_updates will not be modified.
+        The latest_soln and latest_gradient wil be update.
+    '''
+    def pretrain(self, model_params, iterations=50):
+        backup_params = self.latest_params
+        self.latest_params = model_params
         num_samples, acc, loss, soln, update = self.solve_iters(iterations, self.batch_size)
         #num_samples, acc, loss, soln, update = self.solve_inner(1, self.batch_size)
+        
+        # Restore latest_params after training
+        self.latest_params = backup_params
 
         return num_samples, acc[-1], loss[-1], soln, update
 
+    # Update the discrepancy and cosine dissimilarity
     def update_difference(self):
         def _calculate_l2_distance(m1, m2):
             v1, v2 = process_grad(m1), process_grad(m2)
@@ -84,5 +111,12 @@ class Client(Actor):
             return l2d
 
         # Only calcuate the discrepancy between this client and first uplink    
-        self.difference = _calculate_l2_distance(self.local_soln, self.uplink[0].latest_params)
+        # we use self.local_soln istead of self.latest_params, more safe?
+        self.discrepancy = _calculate_l2_distance(self.local_soln, self.uplink[0].latest_params)
+        self.cosine_dissimilarity = calculate_cosine_dissimilarity(self.local_gradient, self.uplink[0].latest_params)
+        return
+
+    def refresh(self):
+        self.check_trainable()
+        self.check_testable()
         return

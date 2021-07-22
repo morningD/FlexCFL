@@ -78,8 +78,15 @@ class FedAvg(object):
             selected_clients = self.select_clients(comm_round)
             #selected_clients = self.clients[:20] # DEBUG, only use first 20 clients to train
             
+            # *Randomly Swap all sublink clients's data with probability
+            if self.swap_p > 0 and self.swap_p < 1:
+                self.swap_data(self.clients, self.swap_p)
+
             # 2, The server boardcasts the model to clients
             for c in selected_clients:
+                # The selected client calculate the latest_update (This may be many rounds apart)
+                c.latest_updates = [(w1-w0) for w0, w1 in zip(c.latest_params, self.server.latest_params)]
+                # Broadcast the gloabl model to selected clients
                 c.latest_params = self.server.latest_params
 
             # 3, Train selected clients
@@ -106,10 +113,15 @@ class FedAvg(object):
             # the latest_params and lastest_updates for selected clients. 
             # Calculate the discrepancy between the global model and client model 
             self.server.apply_update(agg_updates)
+            # Set the training model to the new server model, however this step is not important
+            self.server.set_params(self.server.latest_params)
+
             for c in selected_clients:
+                ''' The latest_params and updates will be refreshed next time they are selected.
                 c.latest_params = self.server.latest_params
                 c.latest_updates = agg_updates
-                c.update_difference()
+                '''
+                c.update_difference() # Based on latest_soln and latest_gradient
 
             # 8, Test the model every eval_every round and the last round
             if comm_round % self.eval_every == 0 or comm_round == self.num_rounds-1:
@@ -230,5 +242,29 @@ class FedAvg(object):
             Test Loss: {round(test_loss, 4)}", 'red', attrs=['reverse']))
 
     def calculate_mean_discrepancy(self, clients):
-        discrepancy = [c.difference for c in clients]
+        discrepancy = [c.discrepancy for c in clients]
         return np.mean(discrepancy)
+
+    """ This function will randomly swap <all> clients' data with probability swap_p
+    """
+    def swap_data(self, clients, swap_p):
+        if len(clients) == 0: return
+
+        # Swap the data of warm clients with probability swap_p
+        clients_size = len(clients)
+        # Randomly swap two clients' dataset
+        if swap_p > 0 and swap_p < 1:
+            # Shuffle the client index
+            shuffle_idx = np.random.permutation(clients_size)
+            swap_flag = np.random.choice([0,1], int(clients_size/2), p=[1-swap_p, swap_p]) # Half size of clients_size
+            for idx in np.nonzero(swap_flag)[0]:
+                # Swap clients' data with index are idx and -(idx+1)
+                cidx1, cidx2 = shuffle_idx[idx], shuffle_idx[-(idx+1)]
+                c1, c2 = clients[cidx1], clients[cidx2]
+                # Swap train data and test data
+                c1.train_data, c2.train_data = c2.train_data, c1.train_data
+                c1.test_data, c2.test_data = c2.test_data, c1.test_data
+                # Refresh client and server
+                _,_,_ = c1.refresh(), c2.refresh(), c1.uplink[0].refresh()
+                print(colored(f"Swap C-{c1.id}@Sever and C-{c2.id}@Server data", 'cyan', attrs=['reverse']))
+        return

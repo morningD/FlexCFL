@@ -14,10 +14,14 @@ class Actor(object):
         self.model = model # callable tf.keras.model
         self.actor_type = actor_type
         self.name = 'NULL'
-        # The latest model parameter and update of this actor
+        # The latest model parameter and update of this actor, which will be modified by train, aggregate, refresh, init
+        # The latest params and updates are set by fresh_latest_params_updates(), apply_update(), train()
+        # The global training model will be set to latest params before training.
         self.latest_params, self.latest_updates = None, None
-        # The latest local training solution of this actor
-        self.local_soln = None
+        # The latest local training solution and traning gradient of this actor
+        # This local variables will be <automatically> set by all <local> training functions <forward propagation>,
+        # which like solve inner and solve iter of actor, train and pretrain of client
+        self.local_soln, self.local_gradient = None, None
         # init train and test size to zero, it will depend on the actor type
         self.train_size, self.test_size = 0, 0 
         self.uplink, self.downlink = [], [] # init to empty, depend on the actor type
@@ -33,6 +37,7 @@ class Actor(object):
         # Initialize the latest model weights and updates
         self.latest_params, self.local_soln = self.get_params(), self.get_params()
         self.latest_updates = [np.zeros_like(ws) for ws in self.latest_params]
+        self.local_gradient = [np.zeros_like(ws) for ws in self.latest_params]
 
     '''Return the parameters of global model instance
     '''
@@ -93,14 +98,14 @@ class Actor(object):
             self.set_params(backup_params)
             # Store the latest local solution params
             self.local_soln = t1_weights
-            # Calculate the updates
-            update = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
+            # Calculate the gradient
+            self.local_gradient = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
             # Get the train accuracy and train loss
             #print(history.history) # Debug
             train_acc = history.history['accuracy']
             train_loss = history.history['loss']
             #print('actor.py:104', train_acc) # DEBUG
-            return num_samples, train_acc, train_loss, t1_weights, update
+            return num_samples, train_acc, train_loss, t1_weights, self.local_gradient
         else:
             # Return 0,0,0 and all zero updates [0, 0, ...],
             # if this actor has not training set
@@ -152,11 +157,11 @@ class Actor(object):
         # Store the latest local solution
         self.local_soln = t1_weights
         # Calculate the updates
-        update = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
+        self.local_gradient = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
         train_acc = [rest[1] for rest in train_results]
         train_loss = [rest[0] for rest in train_results]
         
-        return num_samples, train_acc, train_loss, t1_weights, update
+        return num_samples, train_acc, train_loss, t1_weights, self.local_gradient
 
     def apply_update(self, update):
         '''
@@ -166,7 +171,7 @@ class Actor(object):
         '''
         t0_weights = self.get_params()
         t1_weights = [(w0+up) for up, w0 in zip(update, t0_weights)]
-        self.set_params(t1_weights)
+        self.set_params(t1_weights) # The group training model is set to new weights.
         # Refresh the latest_params and latest_updates attrs
         self.latest_updates = update
         self.latest_params = t1_weights
@@ -175,12 +180,13 @@ class Actor(object):
     def fresh_latest_params_updates(self, update):
         '''
         Call this function to fresh the latest_params and latst_updates
-        The update will not apply to self.model
+        The update will not apply to self.model, compare to apply_update()
         '''
         prev_params = self.latest_params
         latest_params = [(w0+up) for up, w0 in zip(update, prev_params)]
         self.latest_updates = update
         self.latest_params = latest_params
+        return self.latest_params, self.latest_updates
     
     def test_locally(self):
         '''

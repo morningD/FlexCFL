@@ -17,7 +17,8 @@ class TrainConfig(object):
             'num_rounds': 300,
             'clients_per_round': 20,
             'eval_every': 1,
-            'eval_locally': True
+            'eval_locally': True,
+            'swap_p': 0 # Randomly swap two warm clients with probability
         }
 
         self.client_config = {
@@ -26,30 +27,39 @@ class TrainConfig(object):
             # However, we compile lr to model
             'learning_rate': 0.003,
             'batch_size': 10,
-            'temperature': 5 # The dynamic strategy of FedGroup
+            # The dynamic reassign clients strategy of FedGroup
+            # temperature = None means disable this function
+            'temperature': None
         }
 
-        if trainer == 'fedgroup':
-            self.trainer_config.update({
-                'num_group': 3,
-                'group_agg_lr': 0.0,
-                'eval_global_model': True,
-                'pretrain_scale': 20,
-                'measure': 'EDC', # {EDC, MADC}
-                'RAC': False,
-                'RCC': False,
-                'dynamic': True
-            })
-            
-        if trainer == 'fesem' or 'ifca':
-            self.trainer_config.update({
-                'num_group': 3,
-                # The iter-group aggregation is disabled
-                'group_agg_lr': 0.0,
-                'eval_global_model': False
-            })
+        if trainer == 'fedgroup' or 'fesem' or 'ifca':
+            if trainer == 'fedgroup':
+                self.trainer_config.update({
+                    'num_group': 3,
+                    'group_agg_lr': 0.0,
+                    'eval_global_model': True,
+                    'pretrain_scale': 20,
+                    'measure': 'EDC', # {EDC, MADC}
+                    'RAC': False,
+                    'RCC': False,
+                    'dynamic': True,
+                    'temp_metrics': 'cosine', # {l2, consine}
+                    'temp_func': 'step', # {step, linear, lied} lied-> linear increase&exponential decrease
+                    'recluster_epoch': None # [50, 100, 150]
+                })
+                
+            if trainer == 'fesem' or 'ifca':
+                self.trainer_config.update({
+                    'num_group': 3,
+                    # The iter-group aggregation is disabled
+                    'group_agg_lr': 0.0,
+                    'eval_global_model': False
+                })
 
             self.group_config = {
+                # Whether the models of all clients in the group are consistent，
+                # which will greatly affect the test results.
+                'consensus': False,
                 'max_clients': 999,
                 'allow_empty': True
             }
@@ -95,3 +105,9 @@ def process_grad(grads):
         # (784, 10) append (10,)
 
     return client_grads
+
+def calculate_cosine_dissimilarity(w1, w2):
+    flat_w1, flat_w2 = process_grad(w1), process_grad(w2)
+    cosine = np.dot(flat_w1, flat_w2) / (np.sqrt(np.sum(flat_w1**2)) * np.sqrt(np.sum(flat_w2**2)))
+    dissimilarity = (1.0 - cosine) / 2.0 # scale to [0, 1] then flip
+    return dissimilarity

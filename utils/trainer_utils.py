@@ -32,7 +32,7 @@ class TrainConfig(object):
             'temperature': None
         }
 
-        if trainer == 'fedgroup' or 'fesem' or 'ifca':
+        if trainer in ['fedgroup', 'fesem', 'ifca']:
             if trainer == 'fedgroup':
                 self.trainer_config.update({
                     'num_group': 3,
@@ -43,17 +43,17 @@ class TrainConfig(object):
                     'RAC': False,
                     'RCC': False,
                     'dynamic': True,
-                    'temp_metrics': 'cosine', # {l2, consine}
+                    'temp_metrics': 'l2', # {l2, consine}
                     'temp_func': 'step', # {step, linear, lied} lied-> linear increase&exponential decrease
                     'recluster_epoch': None # [50, 100, 150]
                 })
                 
-            if trainer == 'fesem' or 'ifca':
+            if trainer in ['fesem',  'ifca']:
                 self.trainer_config.update({
                     'num_group': 3,
                     # The iter-group aggregation is disabled
                     'group_agg_lr': 0.0,
-                    'eval_global_model': False
+                    'eval_global_model': True
                 })
 
             self.group_config = {

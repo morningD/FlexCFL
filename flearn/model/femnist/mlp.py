@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.layers import Dense, Input, LeakyReLU
 from tensorflow.keras import Sequential
 
 def _construct_client_model(lr):
@@ -8,6 +8,8 @@ def _construct_client_model(lr):
     model.add(Input(shape=(784,)))
     # Hidden Layer
     model.add(Dense(512, 'relu', kernel_regularizer=tf.keras.regularizers.l2(0.001)))
+    #model.add(Dense(512, kernel_regularizer=tf.keras.regularizers.l2(0.001)))
+    #model.add(LeakyReLU(alpha=0.1))
     # Output Layer
     model.add(Dense(26, 'softmax', kernel_regularizer=tf.keras.regularizers.l2(0.001)))
     

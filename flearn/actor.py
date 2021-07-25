@@ -74,7 +74,7 @@ class Actor(object):
             return 0, [np.zeros_like(ws) for ws in self.latest_updates]
     """
 
-    def solve_inner(self, num_epoch=1, batch_size=10):
+    def solve_inner(self, num_epoch=1, batch_size=10, pretrain=False):
         '''
         Solve the local optimization base on local training data,
         This Function will not change the params of model,
@@ -93,25 +93,27 @@ class Actor(object):
             # Use model.fit() to train model
             history = self.model.fit(X, y_true, batch_size, num_epoch, verbose=0)
             t1_weights = self.get_params()
+            gradient = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
             
             # Roll-back the weights of current model
             self.set_params(backup_params)
-            # Store the latest local solution params
-            self.local_soln = t1_weights
-            # Calculate the gradient
-            self.local_gradient = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
+            if pretrain == False:
+                # Store the latest local solution params
+                self.local_soln = t1_weights
+                # Calculate the gradient
+                self.local_gradient = gradient
             # Get the train accuracy and train loss
             #print(history.history) # Debug
             train_acc = history.history['accuracy']
             train_loss = history.history['loss']
             #print('actor.py:104', train_acc) # DEBUG
-            return num_samples, train_acc, train_loss, t1_weights, self.local_gradient
+            return num_samples, train_acc, train_loss, t1_weights, gradient
         else:
             # Return 0,0,0 and all zero updates [0, 0, ...],
             # if this actor has not training set
-            return 0, [0], [0], [np.zeros_like(ws) for ws in self.latest_params]
+            return 0, [0], [0], self.latest_params, [np.zeros_like(ws) for ws in self.latest_params]
 
-    def solve_iters(self, num_iters=1, batch_size=10):
+    def solve_iters(self, num_iters=1, batch_size=10, pretrain=False):
 
         def batch_data_multiple_iters(data, batch_size, num_iters):
             data_x = data['x']
@@ -145,6 +147,9 @@ class Actor(object):
                 yield (batched_x, batched_y)
 
         num_samples = self.train_data['y'].shape[0]
+        if num_samples == 0:
+            return 0, [0], [0], self.latest_params, [np.zeros_like(ws) for ws in self.latest_params]
+
         backup_params = self.get_params()
         t0_weights = self.latest_params
         self.set_params(t0_weights)
@@ -152,16 +157,18 @@ class Actor(object):
         for X, y in batch_data_multiple_iters(self.train_data, batch_size, num_iters):
             train_results.append(self.model.train_on_batch(X, y))
         t1_weights = self.get_params()
+        gradient = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
         # Roll-back the weights of model
         self.set_params(backup_params)
-        # Store the latest local solution
-        self.local_soln = t1_weights
-        # Calculate the updates
-        self.local_gradient = [(w1-w0) for w0, w1 in zip(t0_weights, t1_weights)]
+        if pretrain == False:
+            # Store the latest local solution
+            self.local_soln = t1_weights
+            # Calculate the updates
+            self.local_gradient = gradient
         train_acc = [rest[1] for rest in train_results]
         train_loss = [rest[0] for rest in train_results]
         
-        return num_samples, train_acc, train_loss, t1_weights, self.local_gradient
+        return num_samples, train_acc, train_loss, t1_weights, gradient
 
     def apply_update(self, update):
         '''

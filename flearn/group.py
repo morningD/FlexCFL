@@ -1,5 +1,6 @@
 from flearn.actor import Actor
 import numpy as np
+from math import floor
 
 '''
 Define the group of federated learning framework, 
@@ -19,6 +20,8 @@ class Group(Actor):
 
         self.discrepancy = 0 # The mean discrepancy between this group and sublink node
         self.cosine_dissimilarity = 0 # The mean cosine dissimilarity between this group and sublink node
+
+        self.opt_updates = None
 
     # The group is trainable if it's downlink nodes are trainable
     def check_trainable(self):
@@ -82,6 +85,19 @@ class Group(Actor):
     def federated_averaging_aggregate(self, updates, nks):
         return self.weighted_aggregate(updates, nks)
 
+    """ Aggregate client updates according to their sample size and temperatrues """
+    def federated_averaging_aggregate_with_temperature(self, updates, nks, temps, max_temp):
+        if len(temps) == 0: 
+            return [np.zeros_like(ws) for ws in self.latest_params]
+        else:
+            temp_nks = []
+            for nk, temp in zip(nks, temps):
+                if temp == None:
+                    temp_nks.append(nk)
+                else:
+                    temp_nks.append(floor((max(temp, 0) / max_temp) * nks))
+            return self.federated_averaging_aggregate(updates, temp_nks)
+
     def weighted_aggregate(self, updates, weights):
         # Aggregate the updates according their weights
         normalws = np.array(weights, dtype=float) / np.sum(weights, dtype=np.float)
@@ -126,29 +142,35 @@ class Group(Actor):
 
             # 1, Broadcast group's model to client
             for node in valid_nodes:
+                # Calculate the latest updates of clients
+                node.latest_updates = [(w1-w0) for w0, w1 in zip(node.latest_params, group_params)]
                 node.latest_params = group_params
             
             # 2, Train the neural model of client and save the results
             for node in valid_nodes:
-                num_samples, train_acc, train_loss, update = node.train()
+                num_samples, train_acc, train_loss, soln, update = node.train()
                 train_results.append([node, num_samples, train_acc, train_loss, update])
             
             # 3, Aggregate the clients using FedAvg
             nks = [rest[1] for rest in train_results] # -> list
             updates = [rest[4] for rest in train_results] # -> list
-            agg_updates = self.federated_averaging_aggregate(updates, nks)
+            temps = [rest[0].temperature for rest in train_results]
+            max_temp = [train_results[0][0].max_temp]
+            agg_updates = self.federated_averaging_aggregate_with_temperature(updates, nks, temps, max_temp)
 
             # 4, Refresh the latest parameter and update of group, the global model instance will not change.
             self.fresh_latest_params_updates(agg_updates)
-
-            # 5, Refresh the latest_parameter and update of all downlink clients if this group using consensus policy
+            
+            """
+            # (Optional) Refresh the latest_parameter and update of all downlink clients if this group using consensus policy
             # Otherwise， only update the nodes of this round.
             target_refresh_nodes = self.downlink if self.consensus == True else valid_nodes
             for node in target_refresh_nodes:
                 node.latest_params = self.latest_params
                 node.latest_updates = agg_updates
+            """
 
-            # 6, Summary the train result of group then return
+            # 5, Summary the train result of group then return
             group_num_samples = np.sum(nks, dtype=np.float)
             group_train_acc = np.average([rest[2] for rest in train_results], weights=nks)
             group_train_loss = np.average([rest[3] for rest in train_results], weights=nks)

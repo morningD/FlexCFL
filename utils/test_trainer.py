@@ -6,10 +6,10 @@ from flearn.trainer.ifca import IFCA
 
 def main():
     config = TrainConfig('femnist', 'mclr', 'fedgroup')
-    config.trainer_config['dynamic'] = True
-    config.trainer_config['swap_p'] = 0.02
-    config.client_config['temperature'] = 5
-    config.trainer_config['temp_metrics'] = 'cosine'
+    config.trainer_config['dynamic'] = False
+    config.trainer_config['swap_p'] = 0
+    config.client_config['temperature'] = None
+    config.trainer_config['temp_metrics'] = 'l2'
     config.trainer_config['temp_func'] = 'step'
     trainer = FedGroup(config)
     trainer.train()

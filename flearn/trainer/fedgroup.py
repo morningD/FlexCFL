@@ -14,21 +14,23 @@ from collections import Counter
 class FedGroup(GroupBase):
     def __init__(self, train_config):
         super(FedGroup, self).__init__(train_config)
-        self.group_cold_start()
+        self.group_cold_start(random_centers=self.RCC)
 
     """ Cold strat all groups when create the trainer
     """
     def group_cold_start(self, alpha=20, clients=None, random_centers=False):
-        
+
         # Clustering with all clients by default
         if clients is None: clients = self.clients
 
         # Strategy #1 (RCC): Randomly pre-train num_group clients as cluster centers
         # It is an optional strategy of FedGroup, named FedGroup-RCC
         if random_centers == True:
+            print('Random Cluster Centers.')
             selected_clients = random.sample(clients, k=self.num_group)
             for c, g in zip(selected_clients, self.groups):
-                g.latest_params, g.latest_updates = c.pretrain(self.init_params)
+                _, _, _, g.latest_params, g.opt_updates = c.pretrain(self.init_params, iterations=50)
+                g.latest_updates = g.opt_updates
                 c.set_uplink([g])
                 g.add_downlink([c])
 
@@ -44,7 +46,8 @@ class FedGroup(GroupBase):
             for g, id in zip(self.groups, cluster.keys()):
                 # Init the group latest update
                 g.latest_params = cluster[id][0]
-                g.latest_updates = cluster[id][1]
+                g.opt_updates = cluster[id][1]
+                g.latest_updates = g.opt_updates
                 # These clients do not need to be cold-started
                 # Set the "group" attr of client only, didn't add the client to group
                 g.add_downlink(cluster[id][2])
@@ -54,7 +57,7 @@ class FedGroup(GroupBase):
             # We aggregate these clustering results and get the new auxiliary global model
             self.update_auxiliary_global_model(self.groups)
             # Update the discrepancy of clustering client
-            self.refresh_discrepancy_and_dissmilarity(selected_clients)
+            '''self.refresh_discrepancy_and_dissmilarity(selected_clients)'''
         return
 
     """ Clustering clients 
@@ -72,7 +75,7 @@ class FedGroup(GroupBase):
         # Record the execution time
         start_time = time.time()
         for c in clients:
-            _, _, _, csolns[c], cupdates[c] = c.pretrain(self.init_params)
+            _, _, _, csolns[c], cupdates[c] = c.pretrain(self.init_params, iterations=50)
         print("Pre-training takes {}s seconds".format(time.time()-start_time))
 
         update_array = [process_grad(update) for update in cupdates.values()]
@@ -219,10 +222,12 @@ class FedGroup(GroupBase):
         # 1, Dynamic strategy -> Reassign selected clients according the temperature
         if self.dynamic == True:
             # Reassign selected clients according their temperature
+            """warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]"""
             self.reassign_clients_by_temperature(selected_clients, self.temp_metrics, self.temp_func)
 
         # 2, Cold start newcomer: pretrain and assign a group
         for client in selected_clients:
+        #for client in self.clients:
             if client.has_uplink() == False:
                 self.client_cold_start(client, self.RAC)
         return
@@ -230,7 +235,7 @@ class FedGroup(GroupBase):
     ''' Rewrite the schedule group function of GroupBase '''
     def schedule_groups(self, round, clients, groups):
         if self.dynamic == True and self.recluster_epoch is not None:
-            # Reculster  client
+            # Reculster warm client
             if round in self.recluster_epoch:
                 warm_clients = [c for c in clients if c.has_uplink() == True]
                 self.recluster(warm_clients, groups)
@@ -244,6 +249,7 @@ class FedGroup(GroupBase):
             # TODO: dynamic group num
             return 
 
+        print('Reclustering...')
         # Clear the clustering mark
         for c in clients: c.clustering = False
 
@@ -256,25 +262,28 @@ class FedGroup(GroupBase):
             old_group = c.uplink[0]
             old_group.delete_downlink(c)
             c.clear_uplink()
-            self.client_cold_start(c, self.RAC)
+            self.client_cold_start(c, self.RAC, redo=False)
 
         # Refresh the discrepancy of all clients (clustering clients and reassign clients)
-        self.refresh_discrepancy_and_dissmilarity(clients)
+        '''self.refresh_discrepancy_and_dissmilarity(clients)'''
         return 
 
-    def client_cold_start(self, client, random_assign=False):
+    def client_cold_start(self, client, random_assign=False, redo=False):
         if client.has_uplink() == True:
             print("Warning: Client already has a group: {:2d}.".format(client.uplink[0].id))
             return
 
         else:
-            # Pretrain the client based on global auxilarity model
-            _, _, _, _, cupdate = client.pretrain(self.init_params)
+            _, _, _, csoln, cupdate = client.pretrain(self.init_params, iterations=50)
 
             # Calculate the cosine dissimilarity between client's update and group's update
             diff_list = []
             for g in self.groups:
-                diff = calculate_cosine_dissimilarity(cupdate, g.latest_updates)
+                if redo == False:
+                    opt_updates = g.opt_updates
+                else:
+                    opt_updates = g.latest_updates
+                diff = calculate_cosine_dissimilarity(cupdate, opt_updates)
                 diff_list.append((g, diff))
             if random_assign == True:
                 # RAC: Randomly assign client
@@ -289,6 +298,7 @@ class FedGroup(GroupBase):
 
             # Reset the temperature
             client.temperature = client.max_temp
+            #print(f'Assign client {client.id} to Group {assign_group.id}!')
         return assign_group
 
     def reassign_clients_by_temperature(self, clients, metrics, func):
@@ -298,7 +308,8 @@ class FedGroup(GroupBase):
             if client_bias > group_bias:
                 return temp-1
             else:
-                return min(temp+1, max_temp)
+                #return min(temp+1, max_temp)
+                return min(temp+0, max_temp)
 
         def _linear_temperature(client_bias, group_bias, temp, max_temp):
             if temp <=0: return temp
@@ -338,7 +349,7 @@ class FedGroup(GroupBase):
                 old_group.delete_downlink(wc)
                 wc.clear_uplink()
                 # Cold start this client, the temperature will be reset
-                new_group = self.client_cold_start(wc, self.RAC)
+                new_group = self.client_cold_start(wc, self.RAC, redo=False)
                 if old_group != new_group:
                     print(colored(f'Client {wc.id} migrate from Group {old_group.id} to Group {new_group.id}', 'yellow', attrs=['reverse']))
         return

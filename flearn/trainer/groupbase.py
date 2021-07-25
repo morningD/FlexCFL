@@ -41,6 +41,9 @@ class GroupBase(object):
         # Create results writer
         self.writer = ResultWriter(train_config)
 
+        # Store the initial model params
+        self.init_params = self.server.get_params()
+
     def construct_actors(self):
         # 1, Read dataset
         clients, train_data, test_data = read_federated_data(self.dataset)
@@ -51,7 +54,6 @@ class GroupBase(object):
         self.model_loader = importlib.import_module(model_path).construct_model
         # Construct the model
         client_model = self.model_loader(self.trainer_type, self.client_config['learning_rate'])
-        self.init_params = client_model.get_weights()
 
         # 3, Construct server
         self.server = Server(model=client_model)

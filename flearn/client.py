@@ -59,7 +59,7 @@ class Client(Actor):
         '''
         self.check_trainable()
         num_samples, acc, loss, soln, update = self.solve_inner(self.local_epochs, self.batch_size)
-        return num_samples, acc[-1], loss[-1], update
+        return num_samples, acc[-1], loss[-1], soln, update
 
     def test(self, from_uplink=False):
         '''
@@ -92,11 +92,11 @@ class Client(Actor):
         Note: the latest_params and latest_updates will not be modified.
         The latest_soln and latest_gradient wil be update.
     '''
-    def pretrain(self, model_params, iterations=50):
+    def pretrain(self, model_params, iterations=20):
         backup_params = self.latest_params
         self.latest_params = model_params
-        num_samples, acc, loss, soln, update = self.solve_iters(iterations, self.batch_size)
-        #num_samples, acc, loss, soln, update = self.solve_inner(1, self.batch_size)
+        num_samples, acc, loss, soln, update = self.solve_iters(iterations, self.batch_size, pretrain=True)
+        #num_samples, acc, loss, soln, update = self.solve_inner(1, self.batch_size, pretrain=True)
         
         # Restore latest_params after training
         self.latest_params = backup_params
@@ -113,7 +113,7 @@ class Client(Actor):
         # Only calcuate the discrepancy between this client and first uplink    
         # we use self.local_soln istead of self.latest_params, more safe?
         self.discrepancy = _calculate_l2_distance(self.local_soln, self.uplink[0].latest_params)
-        self.cosine_dissimilarity = calculate_cosine_dissimilarity(self.local_gradient, self.uplink[0].latest_params)
+        self.cosine_dissimilarity = calculate_cosine_dissimilarity(self.local_gradient, self.uplink[0].latest_updates)
         return
 
     def refresh(self):

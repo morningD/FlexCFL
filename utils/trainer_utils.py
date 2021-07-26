@@ -44,7 +44,7 @@ class TrainConfig(object):
                     'RCC': False,
                     'dynamic': True,
                     'temp_metrics': 'l2', # {l2, consine}
-                    'temp_func': 'step', # {step, linear, lied} lied-> linear increase&exponential decrease
+                    'temp_func': 'step', # {step, linear, lied, eied} lied-> linear increase&exponential decrease
                     'recluster_epoch': None # [50, 100, 150]
                 })
                 

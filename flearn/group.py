@@ -90,17 +90,19 @@ class Group(Actor):
         if len(temps) == 0: 
             return [np.zeros_like(ws) for ws in self.latest_params]
         else:
-            temp_nks = []
+            temp_nks, epsilon = [], 1e-5
             for nk, temp in zip(nks, temps):
                 if temp == None:
                     temp_nks.append(nk)
                 else:
-                    temp_nks.append(floor((max(temp, 0) / max_temp) * nks))
+                    # Prevent divided by 0
+                    temp_nks.append(floor((max(temp, 0) / (max_temp+epsilon)) * nk))
             return self.federated_averaging_aggregate(updates, temp_nks)
 
     def weighted_aggregate(self, updates, weights):
         # Aggregate the updates according their weights
-        normalws = np.array(weights, dtype=float) / np.sum(weights, dtype=np.float)
+        epsilon = 1e-5 # Prevent divided by 0
+        normalws = np.array(weights, dtype=float) / (np.sum(weights, dtype=np.float) + epsilon)
         num_layers = len(updates[0])
         agg_updates = []
         for la in range(num_layers):
@@ -155,7 +157,7 @@ class Group(Actor):
             nks = [rest[1] for rest in train_results] # -> list
             updates = [rest[4] for rest in train_results] # -> list
             temps = [rest[0].temperature for rest in train_results]
-            max_temp = [train_results[0][0].max_temp]
+            max_temp = train_results[0][0].max_temp
             agg_updates = self.federated_averaging_aggregate_with_temperature(updates, nks, temps, max_temp)
 
             # 4, Refresh the latest parameter and update of group, the global model instance will not change.

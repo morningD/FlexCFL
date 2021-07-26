@@ -308,23 +308,33 @@ class FedGroup(GroupBase):
             if client_bias > group_bias:
                 return temp-1
             else:
-                #return min(temp+1, max_temp)
                 return min(temp+0, max_temp)
+                #return min(temp+0, max_temp)
 
         def _linear_temperature(client_bias, group_bias, temp, max_temp):
             if temp <=0: return temp
-            
-            new_temp = temp + (group_bias - client_bias) * max_temp * 2
+            if group_bias == 0: return temp
+            scale = client_bias / (group_bias + 1e-5)
+            new_temp = temp + (1 - scale) * max_temp
             return min(new_temp, max_temp)
 
         def _lied_temperature(client_bias, group_bias, temp, max_temp):
             if temp <=0: return temp
             if client_bias > group_bias: # Temperature exponential decrease
-                new_temp = temp - max_temp**((client_bias-group_bias)*4)
-                print('debug', (client_bias-group_bias))
+                rate = 2 * max_temp / (max_temp - 1)
+                scale = min(client_bias / (group_bias + 1e-5), 10) # Prevent Overflow
+                new_temp = temp - (max_temp ** (scale - 1) - 1) * rate
                 return new_temp
             else: # Temperature linear increase
                 return _linear_temperature(client_bias, group_bias, temp, max_temp)
+
+        def _eied_temperature(client_bias, group_bias, temp, max_temp):
+            if temp <=0: return temp
+            sign = 1 if client_bias <= group_bias else -1
+            abs_bias = min(abs(client_bias - group_bias), 10) # Prevent Overflow
+            rate = 2 * max_temp / (max_temp - 1)
+            new_temp = temp + sign * (max_temp ** (abs_bias - 1) - 1) * rate
+            return min(new_temp, max_temp)
 
         # Reassgin selected wram clients when their temperature reduced to zero
         for wc in [c for c in clients if c.has_uplink() == True and c.temperature is not None]:
@@ -342,6 +352,8 @@ class FedGroup(GroupBase):
                 wc.temperature = _linear_temperature(client_bias, group_bias, wc.temperature, wc.max_temp)
             if func == 'lied':
                 wc.temperature = _lied_temperature(client_bias, group_bias, wc.temperature, wc.max_temp)
+            if func == 'eied':
+                wc.temperature = _eied_temperature(client_bias, group_bias, wc.temperature, wc.max_temp)
 
             if wc.temperature <= 0:
                 # Clear the link between client and group if its temperature below 0

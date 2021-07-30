@@ -18,12 +18,14 @@ class Client(Actor):
         # The cosine dissimilarity between this client and its first uplink node
         # Cosine Dissimilarity, definition: (1-cosine) / 2
         self.cosine_dissimilarity = 0 
+        self.label_array = None
 
         # transfer client config to self
         for key, val in config.items(): 
             setattr(self, key, val)
 
         self.max_temp = self.temperature # Save the max temperature
+        self.original_train_data = {'x': np.copy(self.train_data['x']), 'y': np.copy(self.train_data['y'])}
 
         self.refresh()   
 
@@ -119,4 +121,6 @@ class Client(Actor):
     def refresh(self):
         self.check_trainable()
         self.check_testable()
+
+        self.label_array = np.intersect1d(self.train_data['y'], self.test_data['y'])
         return

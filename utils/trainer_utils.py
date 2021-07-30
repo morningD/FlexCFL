@@ -18,7 +18,8 @@ class TrainConfig(object):
             'clients_per_round': 20,
             'eval_every': 1,
             'eval_locally': True,
-            'swap_p': 0 # Randomly swap two warm clients with probability
+            'swap_p': 0, # Randomly swap two warm clients with probability
+            'shift_type': None # {all, part, increment}
         }
 
         self.client_config = {
@@ -45,6 +46,7 @@ class TrainConfig(object):
                     'dynamic': True,
                     'temp_metrics': 'l2', # {l2, consine}
                     'temp_func': 'step', # {step, linear, lied, eied} lied-> linear increase&exponential decrease
+                    'temp_agg': True,
                     'recluster_epoch': None # [50, 100, 150]
                 })
                 

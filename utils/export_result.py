@@ -50,8 +50,12 @@ class ResultWriter(object):
         dataset = config.trainer_config['dataset']
         model = config.trainer_config['model']
         filename = filename + f'{trainer_type}-{dataset}-{model}'
-        swap = config.trainer_config['swap_p']
-        if swap > 0 and swap < 1: filename += f'-swap{swap}'
+        shift_type = config.trainer_config['shift_type']
+        if shift_type in ['all', 'part']:
+            swap = config.trainer_config['swap_p']
+            if swap > 0 and swap < 1: filename += f'-{shift_type}_swap{swap}'
+        if shift_type  == 'increment':
+            filename += f'-incr'
         if trainer_type == 'fedgroup':
            measure = config.trainer_config['measure']
            num_group = config.trainer_config['num_group']
@@ -62,7 +66,8 @@ class ResultWriter(object):
            temp_func = config.trainer_config['temp_func']
            dynamic = config.trainer_config['dynamic']
            agglr = config.trainer_config['group_agg_lr']
-           filename = filename + f'-FG{num_group}-{measure}-agglr{agglr}'
+           temp_agg = config.trainer_config['temp_agg']
+           filename = filename + f'-FG{num_group}-{measure}-agglr{agglr}-tempagg{temp_agg}'
            if dynamic == True: 
                if temp is not None: filename += f'-TEMP{temp}-{temp_metrics}-{temp_func}'
            if RAC == True: filename += '-RAC'

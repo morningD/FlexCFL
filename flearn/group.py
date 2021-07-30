@@ -22,6 +22,7 @@ class Group(Actor):
         self.cosine_dissimilarity = 0 # The mean cosine dissimilarity between this group and sublink node
 
         self.opt_updates = None
+        self.aggregation_strategy = 'fedavg'
 
     # The group is trainable if it's downlink nodes are trainable
     def check_trainable(self):
@@ -158,7 +159,10 @@ class Group(Actor):
             updates = [rest[4] for rest in train_results] # -> list
             temps = [rest[0].temperature for rest in train_results]
             max_temp = train_results[0][0].max_temp
-            agg_updates = self.federated_averaging_aggregate_with_temperature(updates, nks, temps, max_temp)
+            if self.aggregation_strategy == 'temp' and max_temp is not None:
+                agg_updates = self.federated_averaging_aggregate_with_temperature(updates, nks, temps, max_temp)
+            else:
+                agg_updates = self.federated_averaging_aggregate(updates, nks)
 
             # 4, Refresh the latest parameter and update of group, the global model instance will not change.
             self.fresh_latest_params_updates(agg_updates)

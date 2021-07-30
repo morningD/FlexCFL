@@ -15,6 +15,8 @@ class FedGroup(GroupBase):
     def __init__(self, train_config):
         super(FedGroup, self).__init__(train_config)
         self.group_cold_start(random_centers=self.RCC)
+        if self.temp_agg == True: 
+            for g in self.groups: g.aggregation_strategy = 'temp'
 
     """ Cold strat all groups when create the trainer
     """

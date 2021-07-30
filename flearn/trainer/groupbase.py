@@ -14,6 +14,7 @@ from flearn.client import Client
 from flearn.group import Group
 from collections import Counter
 from utils.export_result import ResultWriter
+from math import ceil
 
 class GroupBase(object):
     def __init__(self, train_config):
@@ -127,9 +128,8 @@ class GroupBase(object):
             selected_clients = self.select_clients(comm_round, self.clients_per_round)
             #selected_clients = self.clients[:20] # DEBUG, only use first 20 clients to train
             
-            # *Randomly Swap warm clients's data
-            if self.swap_p > 0 and self.swap_p < 1:
-                self.swap_data(self.clients, self.swap_p)
+            # * Change the clients's data distribution
+            self.data_distribution_shift(comm_round, self.clients, self.shift_type, self.swap_p)
 
             # 2, Schedule clients (for example: reassign) or cold start clients, need selected clients only
             self.schedule_clients(comm_round, selected_clients, self.groups) # Cold start all clients
@@ -373,13 +373,10 @@ class GroupBase(object):
 
     """ This function will randomly swap <warm> clients' data with probability swap_p
     """
-    def swap_data(self, clients, swap_p):
-        # Get all warm clients
-        warm_clients = [c for c in clients if c.has_uplink() == True]
-        if len(warm_clients) == 0: return
+    def swap_data(self, clients, swap_p, scope='all'):
 
         # Swap the data of warm clients with probability swap_p
-        clients_size = len(warm_clients)
+        clients_size = len(clients)
         # Randomly swap two clients' dataset
         if swap_p > 0 and swap_p < 1:
             # Shuffle the client index
@@ -388,14 +385,95 @@ class GroupBase(object):
             for idx in np.nonzero(swap_flag)[0]:
                 # Swap clients' data with index are idx and -(idx+1)
                 cidx1, cidx2 = shuffle_idx[idx], shuffle_idx[-(idx+1)]
-                c1, c2 = warm_clients[cidx1], warm_clients[cidx2]
+                c1, c2 = clients[cidx1], clients[cidx2]
                 g1, g2 = c1.uplink[0], c2.uplink[0]
+                
                 # Swap train data and test data
-                c1.train_data, c2.train_data = c2.train_data, c1.train_data
-                c1.test_data, c2.test_data = c2.test_data, c1.test_data
+                if scope == 'all':
+                    c1.train_data, c2.train_data = c2.train_data, c1.train_data
+                    c1.test_data, c2.test_data = c2.test_data, c1.test_data
+                    if g2!= g1:
+                        print(colored(f"Swap C-{c1.id}@G{g1.id} and C-{c2.id}@G{g2.id} data", 'cyan', attrs=['reverse']))
+
+                if scope == 'part':
+                    if len(c1.label_array) == 0 or len(c2.label_array) == 0: return
+                    c1_diff, c2_diff = np.setdiff1d(c1.label_array, c2.label_array, True), \
+                        np.setdiff1d(c2.label_array, c1.label_array, True)
+                    if c1_diff.size == 0 or c2_diff.size == 0: return
+                    c1_swap_label, c2_swap_label = np.random.choice(c1_diff, 1)[0], np.random.choice(c2_diff, 1)[0]
+                    
+                    '''
+                    print('Debug', np.unique(c1.train_data['y']), np.unique(c1.test_data['y']))
+                    print('Debug', np.unique(c2.train_data['y']), np.unique(c2.test_data['y']))
+                    print(c1_swap_label, c2_swap_label)
+                    '''
+
+                    for c1_data, c2_data in zip([c1.train_data, c1.test_data], [c2.train_data, c2.test_data]):
+                        label_idx1 = np.where(c1_data['y'] == c1_swap_label)[0]
+                        label_idx2 = np.where(c2_data['y'] == c2_swap_label)[0]
+                        c1_swap_x, c2_swap_x = c1_data['x'][label_idx1], c2_data['x'][label_idx2]
+                        c1_swap_y, c2_swap_y = c1_data['y'][label_idx1], c2_data['y'][label_idx2]
+                        
+                        # Swap the feature
+                        c1_data['x'] = np.delete(c1_data['x'], label_idx1, axis=0)
+                        c1_data['x'] = np.vstack([c1_data['x'], c2_swap_x])
+                        c2_data['x'] = np.delete(c2_data['x'], label_idx2, axis=0)
+                        c2_data['x'] = np.vstack([c2_data['x'], c1_swap_x])
+
+                        # Swap the label
+                        c1_data['y'] = np.delete(c1_data['y'], label_idx1)
+                        c1_data['y'] = np.hstack([c1_data['y'], c2_swap_y])
+                        c2_data['y'] = np.delete(c2_data['y'], label_idx2)
+                        c2_data['y'] = np.hstack([c2_data['y'], c1_swap_y])
+
+                        # Shuffle the data
+                        random_idx1, random_idx2 = np.arange(c1_data['y'].shape[0]), np.arange(c2_data['y'].shape[0])
+                        np.random.shuffle(random_idx1), np.random.shuffle(random_idx2)
+                        c1_data['x'], c1_data['y'] = c1_data['x'][random_idx1], c1_data['y'][random_idx1]
+                        c2_data['x'], c2_data['y'] = c2_data['x'][random_idx2], c2_data['y'][random_idx2]
+
+                    print(colored(f"Swap C-{c1.id}@G{g1.id}-L{int(c1_swap_label)} and C-{c2.id}@G{g2.id}-L{int(c2_swap_label)} data", \
+                        'cyan', attrs=['reverse']))
+
                 # Refresh client and group
                 _,_,_ = c1.refresh(), c2.refresh(), g1.refresh()
-                if g2 != g1: 
-                    g2.refresh()
-                    print(colored(f"Swap C-{c1.id}@G-{g1.id} and C-{c2.id}@G-{g2.id} data", 'cyan', attrs=['reverse']))
+                if g2 != g1: g2.refresh()
+        return
+
+    def increase_data(self, round, clients):
+        processing_round = [0, 50, 100, 150]
+        rate = [1/4, 1/2, 3/4, 1.0]
+        
+        if round == 0:
+            self.shuffle_index_dict = {}
+            # Shuffle the train data
+            for c in clients:
+                cidx = np.arange(c.train_data['y'].size)
+                np.random.shuffle(cidx)
+                self.shuffle_index_dict[c] = cidx
+        
+        if round in processing_round:
+            release_rate = rate[processing_round.index(round)]
+            print('>Round {:3d}, {:.1%} training data release.'.format(round, release_rate))
+            for c in clients:
+                # Calculate new train size
+                train_size = ceil(c.train_data['y'].size * release_rate)
+                release_index = self.shuffle_index_dict[c][:train_size]
+                c.train_data['x'] = c.original_train_data['x'][release_index]
+                c.train_data['y'] = c.original_train_data['y'][release_index]
+
+                c.refresh()
+                if c.has_uplink(): c.uplink[0].refresh()
+        return
+
+    def data_distribution_shift(self, round, clients, shift_type=None, swap_p=0):
+        if shift_type == None:
+            return
+
+        if shift_type == 'increment':
+            self.increase_data(round, clients)
+        else:
+            warm_clients = [c for c in clients if c.has_uplink() == True]
+            if len(warm_clients) == 0: return
+            self.swap_data(warm_clients, swap_p, shift_type)
         return

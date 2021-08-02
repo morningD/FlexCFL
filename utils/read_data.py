@@ -76,12 +76,12 @@ def read_federated_data(dsname):
     
     # Convert list to numpy array
     for c in train_data.keys():
-        train_data[c]['x'] = np.array(train_data[c]['x']) # shape=(num_samples, num_features)
-        train_data[c]['y'] = np.array(train_data[c]['y']) # shape=(num_samples, )
+        train_data[c]['x'] = np.array(train_data[c]['x'], dtype=np.float32) # shape=(num_samples, num_features)
+        train_data[c]['y'] = np.array(train_data[c]['y'], dtype=np.uint8) # shape=(num_samples, )
         train_size += train_data[c]['y'].shape[0]
     for c in test_data.keys():
-        test_data[c]['x'] = np.array(test_data[c]['x'])
-        test_data[c]['y'] = np.array(test_data[c]['y'])
+        test_data[c]['x'] = np.array(test_data[c]['x'], dtype=np.float32)
+        test_data[c]['y'] = np.array(test_data[c]['y'], dtype=np.uint8)
         test_size += test_data[c]['y'].shape[0]
         
     # Print the size of this dataset and client count

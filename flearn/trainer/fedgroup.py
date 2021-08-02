@@ -218,20 +218,34 @@ class FedGroup(GroupBase):
 
             return dm # shape=(n_clients, n_clients)
 
-    '''Rewrite the schedule client function of GroupBase '''
+    '''Rewrite the schedule client function of GroupBase,
+        This function will be call before traning.
+    '''
     def schedule_clients(self, round, selected_clients, groups):
-
-        # 1, Dynamic strategy -> Reassign selected clients according the temperature
+        
         if self.dynamic == True:
-            # Reassign selected clients according their temperature
-            """warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]"""
-            self.reassign_clients_by_temperature(selected_clients, self.temp_metrics, self.temp_func)
+            # 1, Redo cold start distribution shift clients
+            warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]
+            for client in warm_clients:
+                count = client.check_distribution_shift()
+                if count is not None and client.distribution_shift == True:
+                    prev_g = client.uplink[0]
+                    prev_g.delete_downlink(client)
+                    client.clear_uplink()
+                    self.client_cold_start(client)
+                    new_g = client.uplink[0]
+                    client.train_label_count = count
+                    client.distribution_shift = False
+                    if prev_g != new_g:
+                        print(colored(f'Client {client.id} migrate from Group {prev_g.id} \
+                            to Group {new_g.id}', 'yellow', attrs=['reverse']))
 
         # 2, Cold start newcomer: pretrain and assign a group
         for client in selected_clients:
         #for client in self.clients:
             if client.has_uplink() == False:
                 self.client_cold_start(client, self.RAC)
+
         return
 
     ''' Rewrite the schedule group function of GroupBase '''
@@ -310,7 +324,7 @@ class FedGroup(GroupBase):
             if client_bias > group_bias:
                 return temp-1
             else:
-                return min(temp+0, max_temp)
+                return min(temp+1, max_temp)
                 #return min(temp+0, max_temp)
 
         def _linear_temperature(client_bias, group_bias, temp, max_temp):
@@ -346,7 +360,7 @@ class FedGroup(GroupBase):
                 client_bias, group_bias = wc.discrepancy, wc.uplink[0].discrepancy
             if metrics == 'cosine': 
                 client_bias, group_bias = wc.cosine_dissimilarity, wc.uplink[0].cosine_dissimilarity
-
+            #print('debug: fedgroup.py:366', client_bias, group_bias)
             # The discrepancy of this client large than the mean discrepancy of group
             if func == 'step':
                 wc.temperature = _step_temperature(client_bias, group_bias, wc.temperature, wc.max_temp)
@@ -357,6 +371,8 @@ class FedGroup(GroupBase):
             if func == 'eied':
                 wc.temperature = _eied_temperature(client_bias, group_bias, wc.temperature, wc.max_temp)
 
+            if wc.temperature < 0: wc.temperature = 0
+            ''' Redo cold start if temperature less than 0
             if wc.temperature <= 0:
                 # Clear the link between client and group if its temperature below 0
                 old_group = wc.uplink[0]
@@ -366,4 +382,10 @@ class FedGroup(GroupBase):
                 new_group = self.client_cold_start(wc, self.RAC, redo=False)
                 if old_group != new_group:
                     print(colored(f'Client {wc.id} migrate from Group {old_group.id} to Group {new_group.id}', 'yellow', attrs=['reverse']))
+            '''
+        return
+
+    def schedule_clients_after_training(self, comm_round, clients, groups):
+        # Refresh selected clients' temperature
+        self.reassign_clients_by_temperature(clients, self.temp_metrics, self.temp_func)
         return

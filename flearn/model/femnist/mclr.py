@@ -7,7 +7,7 @@ def _construct_client_model(lr):
     # Input Layer
     model.add(Input(shape=(784,)))
     # Output Layer
-    model.add(Dense(26, 'softmax', kernel_regularizer=tf.keras.regularizers.l2(0.001)))
+    model.add(Dense(10, 'softmax', kernel_regularizer=tf.keras.regularizers.l2(0.001)))
     
     opt = tf.keras.optimizers.SGD(learning_rate=lr)
     #opt = tf.keras.optimizers.Adam(learning_rate=lr)

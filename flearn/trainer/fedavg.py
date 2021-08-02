@@ -208,7 +208,7 @@ class FedAvg(object):
                 Test Loss: {round(weighted_test_loss, 4)}', 'red', attrs=['reverse']))
             return num_clients, weighted_test_acc, weighted_test_loss
 
-    def train_locally(self, num_epoch=100, batch_size=10):
+    def train_locally(self, num_epoch=30, batch_size=10):
         """
             We can train and test model on server for comparsion or debugging reseason
         """

@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from flearn.actor import Actor
 from utils.trainer_utils import process_grad, calculate_cosine_dissimilarity
+from scipy.stats import wasserstein_distance
 
 '''
 Define the client of federated learning framework
@@ -18,7 +19,6 @@ class Client(Actor):
         # The cosine dissimilarity between this client and its first uplink node
         # Cosine Dissimilarity, definition: (1-cosine) / 2
         self.cosine_dissimilarity = 0 
-        self.label_array = None
 
         # transfer client config to self
         for key, val in config.items(): 
@@ -27,7 +27,19 @@ class Client(Actor):
         self.max_temp = self.temperature # Save the max temperature
         self.original_train_data = {'x': np.copy(self.train_data['x']), 'y': np.copy(self.train_data['y'])}
 
-        self.refresh()   
+        self.label_array = None
+        self.distribution_shift = False
+
+        self.train_size = self.train_data['y'].shape[0]
+        self.test_size = self.test_data['y'].shape[0]
+
+        self.num_classes = self.model.layers[-1].output_shape[-1]
+        self.train_label_count = np.zeros(self.num_classes)
+        label, count = np.unique(self.train_data['y'], return_counts=True)
+        np.put(self.train_label_count, label, count)
+        self.emd_threshold = (1.0 / self.num_classes) * self.train_size * 0.2
+
+        self.refresh()    
 
     # The client is the end point of FL framework 
     def has_downlink(self):
@@ -109,7 +121,7 @@ class Client(Actor):
     def update_difference(self):
         def _calculate_l2_distance(m1, m2):
             v1, v2 = process_grad(m1), process_grad(m2)
-            l2d = np.sum((v1-v2)**2)**0.5
+            l2d = np.linalg.norm(v1-v2)
             return l2d
 
         # Only calcuate the discrepancy between this client and first uplink    
@@ -124,3 +136,17 @@ class Client(Actor):
 
         self.label_array = np.intersect1d(self.train_data['y'], self.test_data['y'])
         return
+
+    def check_distribution_shift(self):
+        curr_count = np.zeros(self.num_classes)
+        label, count = np.unique(self.train_data['y'], return_counts=True)
+        np.put(curr_count, label, count)
+
+        emd = wasserstein_distance(curr_count, self.train_label_count)
+        if emd > self.emd_threshold:
+            self.distribution_shift = True
+            return curr_count
+        else:
+            return None
+
+

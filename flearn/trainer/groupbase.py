@@ -159,6 +159,9 @@ class GroupBase(object):
             # 6, update the discrepancy and dissmilarity between group and client
             diffs = self.refresh_discrepancy_and_dissmilarity(selected_clients)
 
+            # 7, schedule clients after training
+            self.schedule_clients_after_training(comm_round, selected_clients, self.groups)
+
             # 7, Summary this round of training
             train_summary = self.summary_results(comm_round, train_results=train_results)
 
@@ -336,6 +339,9 @@ class GroupBase(object):
                 assigned_group.add_downlink(client)
         return
 
+    def schedule_clients_after_training(self, comm_round, clients, groups):
+        return
+
     def schedule_groups(self, round, clients, groups):
         """rewrite this function if need
         """
@@ -390,6 +396,7 @@ class GroupBase(object):
                 
                 # Swap train data and test data
                 if scope == 'all':
+                    c1.distribution_shift, c2.distribution_shift = True, True
                     c1.train_data, c2.train_data = c2.train_data, c1.train_data
                     c1.test_data, c2.test_data = c2.test_data, c1.test_data
                     if g2!= g1:
@@ -401,7 +408,7 @@ class GroupBase(object):
                         np.setdiff1d(c2.label_array, c1.label_array, True)
                     if c1_diff.size == 0 or c2_diff.size == 0: return
                     c1_swap_label, c2_swap_label = np.random.choice(c1_diff, 1)[0], np.random.choice(c2_diff, 1)[0]
-                    
+                    c1.distribution_shift, c2.distribution_shift = True, True
                     '''
                     print('Debug', np.unique(c1.train_data['y']), np.unique(c1.test_data['y']))
                     print('Debug', np.unique(c2.train_data['y']), np.unique(c2.test_data['y']))

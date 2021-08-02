@@ -97,6 +97,7 @@ class Group(Actor):
                     temp_nks.append(nk)
                 else:
                     # Prevent divided by 0
+                    #print('debug: group.py:100', temp, max_temp, nk)
                     temp_nks.append(floor((max(temp, 0) / (max_temp+epsilon)) * nk))
             return self.federated_averaging_aggregate(updates, temp_nks)
 
@@ -181,11 +182,11 @@ class Group(Actor):
             group_train_acc = np.average([rest[2] for rest in train_results], weights=nks)
             group_train_loss = np.average([rest[3] for rest in train_results], weights=nks)
 
-            return group_num_samples, group_train_acc, group_train_loss, agg_updates
+            return group_num_samples, group_train_acc, group_train_loss, self.latest_params, agg_updates
 
         elif self.allow_empty == True:
             group_num_samples, group_train_acc, group_train_loss, update = 0, 0, 0, None
-            return group_num_samples, group_train_acc, group_train_loss, update
+            return group_num_samples, group_train_acc, group_train_loss, self.latest_params, update
         else:
             print(f'ERROR: Group {self.id} has not any valid training clients with training data which is invalid.')
             return

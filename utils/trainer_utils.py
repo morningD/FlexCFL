@@ -110,6 +110,6 @@ def process_grad(grads):
 
 def calculate_cosine_dissimilarity(w1, w2):
     flat_w1, flat_w2 = process_grad(w1), process_grad(w2)
-    cosine = np.dot(flat_w1, flat_w2) / (np.sqrt(np.sum(flat_w1**2)) * np.sqrt(np.sum(flat_w2**2)))
+    cosine = np.dot(flat_w1, flat_w2) / (np.linalg.norm(flat_w1) * np.linalg.norm(flat_w2))
     dissimilarity = (1.0 - cosine) / 2.0 # scale to [0, 1] then flip
     return dissimilarity

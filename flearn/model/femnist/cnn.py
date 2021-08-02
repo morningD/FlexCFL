@@ -48,7 +48,7 @@ def _construct_client_model(lr):
     # Droupout3
     model.add(Dropout(0.4))
     # Output Layer
-    model.add(Dense(26, 'softmax'))
+    model.add(Dense(10, 'softmax'))
     
     opt = tf.keras.optimizers.SGD(learning_rate=lr)
     #opt = tf.keras.optimizers.Adam(learning_rate=lr)

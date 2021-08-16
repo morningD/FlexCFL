@@ -51,7 +51,7 @@ class GroupBase(object):
 
         # 2, Get model loader according to dataset and model name and construct the model
         # Set the model loader according to the dataset and model name
-        model_path = 'flearn.model.%s.%s' % (self.dataset, self.model)
+        model_path = 'flearn.model.%s.%s' % (self.dataset.split('_')[0], self.model)
         self.model_loader = importlib.import_module(model_path).construct_model
         # Construct the model
         client_model = self.model_loader(self.trainer_type, self.client_config['learning_rate'])
@@ -132,7 +132,7 @@ class GroupBase(object):
             self.data_distribution_shift(comm_round, self.clients, self.shift_type, self.swap_p)
 
             # 2, Schedule clients (for example: reassign) or cold start clients, need selected clients only
-            self.schedule_clients(comm_round, selected_clients, self.groups) # Cold start all clients
+            schedule_results = self.schedule_clients(comm_round, selected_clients, self.groups)
 
             # 3, Schedule groups (for example: recluster), need all clients
             self.schedule_groups(comm_round, self.clients, self.groups)
@@ -190,7 +190,7 @@ class GroupBase(object):
                 test_time = round(time.time() - start_time, 3)
                 # Write the training result and test result to file
                 # Note: Only write the complete test accuracy after all client cold start
-                self.writer.write_summary(comm_round, train_summary, test_summary, diffs)
+                self.writer.write_summary(comm_round, train_summary, test_summary, diffs, schedule_results)
 
             # 10, Print the train, aggregate, test time
             print(f'Round: {comm_round}, Training time: {train_time}, Test time: {test_time}, \

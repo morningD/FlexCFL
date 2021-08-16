@@ -56,6 +56,9 @@ def read_femnist(train_data_dir, test_data_dir):
 def read_fmnist(train_data_dir, test_data_dir):
     return read_fedprox_json(train_data_dir, test_data_dir)
 
+def read_synthetic(train_data_dir, test_data_dir):
+    return read_fedprox_json(train_data_dir, test_data_dir)
+
 def read_federated_data(dsname):
     clients = []
     train_data = {}
@@ -73,6 +76,8 @@ def read_federated_data(dsname):
         clients, train_data, test_data = read_femnist(train_data_dir, test_data_dir)
     if dsname == 'fmnist':
         clients, train_data, test_data = read_fmnist(train_data_dir, test_data_dir)
+    if dsname.startswith('synthetic'):
+        clients, train_data, test_data = read_synthetic(train_data_dir, test_data_dir)
     
     # Convert list to numpy array
     for c in train_data.keys():

@@ -17,6 +17,8 @@ class FedGroup(GroupBase):
         self.group_cold_start(random_centers=self.RCC)
         if self.temp_agg == True: 
             for g in self.groups: g.aggregation_strategy = 'temp'
+        else:
+            for g in self.groups: g.aggregation_strategy = 'fedavg'
 
     """ Cold strat all groups when create the trainer
     """
@@ -226,9 +228,11 @@ class FedGroup(GroupBase):
         if self.dynamic == True:
             # 1, Redo cold start distribution shift clients
             warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]
+            shift_count, migration_count = 0, 0
             for client in warm_clients:
                 count = client.check_distribution_shift()
                 if count is not None and client.distribution_shift == True:
+                    shift_count += 1
                     prev_g = client.uplink[0]
                     prev_g.delete_downlink(client)
                     client.clear_uplink()
@@ -237,6 +241,7 @@ class FedGroup(GroupBase):
                     client.train_label_count = count
                     client.distribution_shift = False
                     if prev_g != new_g:
+                        migration_count += 1
                         print(colored(f'Client {client.id} migrate from Group {prev_g.id} \
                             to Group {new_g.id}', 'yellow', attrs=['reverse']))
 
@@ -246,7 +251,7 @@ class FedGroup(GroupBase):
             if client.has_uplink() == False:
                 self.client_cold_start(client, self.RAC)
 
-        return
+        return {'shift': shift_count, 'migration': migration_count}
 
     ''' Rewrite the schedule group function of GroupBase '''
     def schedule_groups(self, round, clients, groups):

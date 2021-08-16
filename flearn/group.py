@@ -162,8 +162,10 @@ class Group(Actor):
             max_temp = train_results[0][0].max_temp
             if self.aggregation_strategy == 'temp' and max_temp is not None:
                 agg_updates = self.federated_averaging_aggregate_with_temperature(updates, nks, temps, max_temp)
-            else:
+            if self.aggregation_strategy == 'fedavg':
                 agg_updates = self.federated_averaging_aggregate(updates, nks)
+            if self.aggregation_strategy == 'avg':
+                agg_updates = self.federated_averaging_aggregate(updates, [1.0*len(nks)])
 
             # 4, Refresh the latest parameter and update of group, the global model instance will not change.
             self.fresh_latest_params_updates(agg_updates)

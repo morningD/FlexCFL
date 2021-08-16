@@ -16,6 +16,7 @@ class ResultWriter(object):
         self.num_rounds = train_config.trainer_config['num_rounds']
         self.eval_every = train_config.trainer_config['eval_every']
         self.trainer_type = train_config.trainer_type
+        self.migration = train_config.trainer_config['dynamic']
         if 'num_group' in train_config.trainer_config:
             self.num_group = train_config.trainer_config['num_group']
 
@@ -27,8 +28,9 @@ class ResultWriter(object):
     def make_header(self):
         if self.trainer_type == 'fedavg':
             header = ['TestAcc', 'TrainAcc', 'TrainLoss', 'NumClient', 'Discrepancy']
-        else:
+        if self.trainer_type in ['fedgroup', 'ifca', 'fesem']:
             header = ['WeightedTestAcc', 'WeightedTrainAcc', 'WeightedTrainLoss', 'NumGroup', 'Discrepancy']
+            if self.migration == True: header += ['Shift, Migration']
             for gid in range(self.num_group):
                 header += [f'G{gid}TestAcc', f'G{gid}TrainAcc', f'G{gid}TrainLoss', f'G{gid}Diff', f'G{gid}NumClinet']
         return header
@@ -57,21 +59,23 @@ class ResultWriter(object):
         if shift_type  == 'increment':
             filename += f'-incr'
         if trainer_type == 'fedgroup':
-           measure = config.trainer_config['measure']
-           num_group = config.trainer_config['num_group']
-           RAC = config.trainer_config['RAC']
-           RCC = config.trainer_config['RCC']
-           temp = config.client_config['temperature']
-           temp_metrics = config.trainer_config['temp_metrics']
-           temp_func = config.trainer_config['temp_func']
-           dynamic = config.trainer_config['dynamic']
-           agglr = config.trainer_config['group_agg_lr']
-           temp_agg = config.trainer_config['temp_agg']
-           filename = filename + f'-FG{num_group}-{measure}-agglr{agglr}-tempagg{temp_agg}'
-           if dynamic == True: 
+            measure = config.trainer_config['measure']
+            num_group = config.trainer_config['num_group']
+            RAC = config.trainer_config['RAC']
+            RCC = config.trainer_config['RCC']
+            temp = config.client_config['temperature']
+            temp_metrics = config.trainer_config['temp_metrics']
+            temp_func = config.trainer_config['temp_func']
+            dynamic = config.trainer_config['dynamic']
+            agglr = config.trainer_config['group_agg_lr']
+            temp_agg = config.trainer_config['temp_agg']
+            filename = filename + f'-FG{num_group}-{measure}-agglr{agglr}-tempagg{temp_agg}'
+            if dynamic == True: 
                if temp is not None: filename += f'-TEMP{temp}-{temp_metrics}-{temp_func}'
-           if RAC == True: filename += '-RAC'
-           if RCC == True: filename += '-RCC'
+            else:
+                filename += '-static'
+            if RAC == True: filename += '-RAC'
+            if RCC == True: filename += '-RCC'
         filename += '.xlsx'
         return filename
 
@@ -80,7 +84,7 @@ class ResultWriter(object):
         
         if self.trainer_type == 'fedavg':
             test_acc = 'TestAcc'
-        else:
+        if self.trainer_type in ['fedgroup', 'ifca', 'fesem']:
             test_acc = 'WeightedTestAcc'
 
         self.df.loc[round] = result
@@ -96,11 +100,12 @@ class ResultWriter(object):
             self.df.to_excel(self.filepath)
         return
 
-    def write_summary(self, round, train_summary, test_summary, diffs):
+    def write_summary(self, round, train_summary, test_summary, diffs, schedule_results=None):
         num_sublink, train_acc, train_loss = train_summary['Total']
         _, test_acc, _ = test_summary['Total']
         discrepancy = diffs['Total']
-        row = [test_acc, train_acc, train_loss, num_sublink, discrepancy]
+        shift, migration = schedule_results['shift'], schedule_results['migration']
+        row = [test_acc, train_acc, train_loss, num_sublink, discrepancy, shift, migration]
         for gid in range(self.num_group):
             if f'G{gid}' in diffs: # The group has sublink clients
                 train_acc, train_loss, _ = train_summary[f'G{gid}']

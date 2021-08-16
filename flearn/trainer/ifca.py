@@ -7,6 +7,7 @@ from utils.trainer_utils import process_grad
 #from flearn.model.mlp import construct_model
 from flearn.trainer.groupbase import GroupBase
 from collections import Counter
+from termcolor import colored
 
 """
 IFCA: "An Efficient Framework for Clustered Federated Learning"
@@ -17,6 +18,9 @@ class IFCA(GroupBase):
         self.group_cold_start()
         # Make sure the group aggregation is disabled
         self.group_agg_lr = 0.0
+
+        # FeSEM uses simply average aggregation strategy
+        for g in self.groups: g.aggregation_strategy = 'avg'
 
     # Random initialize group models as centers
     def group_cold_start(self):
@@ -40,7 +44,33 @@ class IFCA(GroupBase):
 
     """ Minimize the Group Loss
     """
-    def schedule_clients(self, round, clients, groups):        
+    def schedule_clients(self, round, clients, groups):
+        if self.dynamic == True:
+            # 1, Redo cold start distribution shift clients
+            warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]
+            shift_count, migration_count = 0, 0
+            for client in warm_clients:
+                count = client.check_distribution_shift()
+                if count is not None and client.distribution_shift == True:
+                    shift_count += 1
+                    prev_g = client.uplink[0]
+                    prev_g.delete_downlink(client)
+                    client.clear_uplink()
+                    self.clients_cold_start([client], groups)
+                    new_g = client.uplink[0]
+                    client.train_label_count = count
+                    client.distribution_shift = False
+                    if prev_g != new_g:
+                        migration_count += 1
+                        print(colored(f'Client {client.id} migrate from Group {prev_g.id} \
+                            to Group {new_g.id}', 'yellow', attrs=['reverse']))
+
+        self.clients_cold_start(clients, groups)
+
+        return {'shift': shift_count, 'migration': migration_count}
+
+    def clients_cold_start(self, clients, groups):
+
         def _calculate_loss_distance(group, clients):
             group_params = group.latest_params
             loss_dist = []
@@ -55,7 +85,7 @@ class IFCA(GroupBase):
             self.server.set_params(backup_params)
             return loss_dist
 
-        diffs = []
+        diffs, assgin_results = [], []
         for g in groups:
             diffs.append(_calculate_loss_distance(g, clients))
         diffs = np.vstack(diffs)
@@ -68,6 +98,7 @@ class IFCA(GroupBase):
             c.set_uplink([assigned_group])
             # Add the new downlink
             assigned_group.add_downlink([c])
+            assgin_results.append(assigned_group)
 
-        return 
+        return assgin_results    
 

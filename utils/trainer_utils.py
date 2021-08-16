@@ -83,8 +83,8 @@ class TrainConfig(object):
             self.trainer_config.update({'num_group': 5})
 
         if self.trainer_config['dataset'] == 'fmnist':
-            self.client_config.update({'learning_rate': 0.05})
-            self.trainer_config.update({'num_group': 3})
+            self.client_config.update({'learning_rate': 0.005})
+            self.trainer_config.update({'num_group': 5})
         
         if trainer == 'splitfed':
             #TODO:

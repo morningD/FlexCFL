@@ -39,7 +39,8 @@ class Client(Actor):
         np.put(self.train_label_count, label, count)
         self.emd_threshold = (1.0 / self.num_classes) * self.train_size * 0.2
 
-        self.refresh()    
+        self.refresh()
+        #print(np.unique(self.train_data['y']), np.unique(self.test_data['y'])) 
 
     # The client is the end point of FL framework 
     def has_downlink(self):
@@ -73,7 +74,7 @@ class Client(Actor):
         '''
         self.check_trainable()
         num_samples, acc, loss, soln, update = self.solve_inner(self.local_epochs, self.batch_size)
-        return num_samples, acc[-1], loss[-1], soln, update
+        return num_samples, acc[0], loss[0], soln, update
 
     def test(self, from_uplink=False):
         '''

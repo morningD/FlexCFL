@@ -30,7 +30,7 @@ class ResultWriter(object):
             header = ['TestAcc', 'TrainAcc', 'TrainLoss', 'NumClient', 'Discrepancy']
         if self.trainer_type in ['fedgroup', 'ifca', 'fesem']:
             header = ['WeightedTestAcc', 'WeightedTrainAcc', 'WeightedTrainLoss', 'NumGroup', 'Discrepancy']
-            if self.migration == True: header += ['Shift, Migration']
+            if self.migration == True: header += ['Shift', 'Migration']
             for gid in range(self.num_group):
                 header += [f'G{gid}TestAcc', f'G{gid}TrainAcc', f'G{gid}TrainLoss', f'G{gid}Diff', f'G{gid}NumClinet']
         return header

@@ -5,14 +5,10 @@ from flearn.trainer.fedgroup import FedGroup
 from flearn.trainer.ifca import IFCA
 
 def main():
-    config = TrainConfig('femnist', 'mclr', 'fedgroup')
+    config = TrainConfig('femnist', 'mlp', 'fedgroup')
     config.trainer_config['dynamic'] = True
-    config.trainer_config['swap_p'] = 0.02
-    config.client_config['temperature'] = 3
-    config.trainer_config['temp_metrics'] = 'l2'
-    config.trainer_config['temp_func'] = 'linear'
+    config.trainer_config['swap_p'] = 0.05
     trainer = FedGroup(config)
     trainer.train()
-    #trainer.train_locally()
 
 main()

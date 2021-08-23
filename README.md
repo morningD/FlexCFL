@@ -1,8 +1,34 @@
-# FedGroup
+# FlexCFL
 
-The source code of the Arxiv preprint article:
+The source code of the Arxiv preprint article (FlexCFL):
 
-[FedGroup: Ternary Cosine Similarity-based Clustered Federated Learning Framework toward High Accuracy in Heterogeneous Data](https://arxiv.org/abs/2010.06870)
+[Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2010.06870)
+
+# Overview
+FlexCFL is a wholly new reconstruction of our previous CFL framework [FedGroup](https://github.com/morningD/GrouProx).
+There are many exciting improvements of FlexCFL:
+- TF2.0 support. (FedGroup uses tensorflow.compat.v1 API)
+- Run faster and reading friendly. (Previous FedGroup is based on FedProx)
+- Easy to get started with only a few lines of configuration.
+- The output is saved in `excel` format.
+
+New functions of FlexCFL:
+- Simulation of client-level distribution shift.
+- Client migration strategy.
+- Evaluation for auxiliary server model (global average model).
+- Temperature aggregation (experimental).
+
+Some technical fixes of FlexCFL:
+- The aggregation strategy of IFCA and FeSEM change to simply averaging according to the original description.
+- The maximum accuracy does not include the 'partial accuracy' (In the early training period, not all clients participate in the test)
+- Cold start client gradually.
+
+FlexCFL can simulate following (Clustered) Federated Learning frameworks:
+- FedAvg & FedSGD -> [Communication-Efficient Learning of Deep Networks from Decentralized Data](http://proceedings.mlr.press/v54/mcmahan17a.html)
+- FedGrop & FedGroup-RAC & FedGroup-RCC -> [Efficient Clustered Federated Learning via Decomposed Data-Driven Measure](https://arxiv.org/abs/2010.06870)
+- IFCA -> [An Efficient Framework for Clustered Federated Learning](https://proceedings.neurips.cc/paper/2020/hash/e32cc80bf07915058ce90722ee17bb71-Abstract.html)
+- FeSEM -> [Multi-center federated learning](https://arxiv.org/abs/2005.01026)
+- FlexCFL & FlexCFL with group aggregation -> [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift]()
 
 # Requirement
 Python packages:
@@ -12,7 +38,7 @@ Python packages:
 - matplotlib
 - tqdm
  
- You need to download the dataset (e.g. FEMNIST, MNIST, Sent140, Synthetic) and specify a GPU id follow the guidelines of [FedProx](https://github.com/litian96/FedProx).
+ You need to download the dataset (e.g. FEMNIST, MNIST, FashionMNIST, Synthetic) and specify a GPU id follows the guidelines of [Ditto](https://github.com/litian96/ditto).
 
 The directory structure of the datasets should look like this:
 
@@ -20,75 +46,65 @@ The directory structure of the datasets should look like this:
 GrouProx-->data-->mnist-->data-->train--> ***train.json
                |              |->test--> ***test.json
                |
-               |->nist-->data-->train--> ***train.json
-               |                     |-> ***test.json
+               |->femnist-->data-->train--> ***train.json
+               |              |->test--> ***test.json
                |
-               |->sent140--> ...
+               |->fmnist-->data-->...
+               |
+               |->synthetic_1_1-->data-->...
                |
                ...
 ```
 # Quick Start
-Just run `GrouProx_notebook.ipynb`.
 
-You can modify the configurations by directly modifying the code of `GrouProx_notebook.ipynb`.
-The common hyperparameters of FedGroup is:
+Just run `test.ipynb`.
+The `task_list` shows examples of several configurations.
+The default configurations are defined in `FlexCFL/utils/trainer_utils.py` as `TrainConfig`.
+
+You can modify the configurations by directly modifying the `config` of trainer.
+The commonly used hyperparameters of FlexCFL are:
 ```
-# Name of dataset, should be list in GrouProx-->data-->...
-params['dataset'] = 'sent140' 
+# Total communication round
+trainer_config['num_rounds'] = 300
 
-# Name of model, should be list in GrouProx-->flearn-->models-->params['dataset']-->...
-params['model'] = 'stacked_lstm'
+# Evalution interval round
+trainer_config['eval_every'] = 1
 
-# Name of optimizer, should be one of ['fedavg', 'fedprox', 'grouprox']
-params['optimizer'] = 'grouprox'
+# Number of group
+trainer_config['num_group'] = 5
 
-# The dropout rate as demonstrated in the FedProx paper
-params['drop_percent'] = 0
+# Evalute the global average model
+trainer_config['eval_global_model'] = True
 
-# Total communication rounds
-params['num_rounds'] = 200
+# Inter-group aggregation rate
+trainer_config['group_agg_lr'] = 0.1
 
-# Local epoch E, same as FedProx
-params['num_epochs'] = 20
+# Pretraining scale for group cold start of FlexCFL
+trainer_config['pretrain_scale'] = 20
 
-# Local mini-batch size, same as FedProx
-params['batch_size'] = 10
+# Client data distribution shift config
+trainer_config['shift_type'] = 'all'
+trainer_config['swap_p'] = 0.05
 
-# Evaluate the group model every $params['eval_every'] rounds
-params['eval_every'] = 1
+# Client migration strategy
+trainer_config['dynamic'] = True
 
-# The number of clients K selected per round
-params['clients_per_round'] = 20
-
-# Random seed
-params['seed'] = 233
-
-# Inter-group learning rate
-params['agg_lr'] = 0.01
-
-# Number of 'Groups'
-params['num_group'] = 5
-
-# Some specific hyperparameters of FedGroup
-if params['optimizer']  == 'grouprox':
-  # Whether to use Proximal method, True for FedGrouProx
-  params['proximal'] = False
-
-  # Radomly Assign Clients and Random Cluster Centers strategy, please see the paper for details 
-  params['RAC'] = False
-  params['RCC'] = False
-
-  # The Group may be empty if True
-  params['allow_empty'] = True
+# The local epoch, mini-batch size, learning rate for local SGD
+client_config['local_epochs'] = 10
+client_config['batch_size'] = 10
+client_config['learning_rate'] = 0.003
 
 ```
+
+You can also run FlexCFL with `python main.py`. Please modify `config` according to your needs.
+
 # Experimental Results
-All evaluation results will save in the `GrouProx-->results-->...` directory as `csv` format files.
+All evaluation results will save in the `FlexCFL-->results-->...` directory as `excel` format files.
 
 # Reference
-Please cite the preprint version of `FedGroup` if the code helped your research 😊
+Please cite the preprint version of `FlexCFL` if the code helped your research 😊
 
-- [FedGroup: Ternary Cosine Similarity-based Clustered Federated Learning Framework toward High Accuracy in Heterogeneous Data](https://arxiv.org/abs/2010.06870)
+- [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2010.06870)
 
 BibTeX
 ```

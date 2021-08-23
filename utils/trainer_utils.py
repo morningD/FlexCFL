@@ -46,7 +46,7 @@ class TrainConfig(object):
                     'dynamic': True,
                     'temp_metrics': 'l2', # {l2, consine}
                     'temp_func': 'step', # {step, linear, lied, eied} lied-> linear increase&exponential decrease
-                    'temp_agg': True,
+                    'temp_agg': False,
                     'recluster_epoch': None # [50, 100, 150]
                 })
                 
@@ -87,7 +87,7 @@ class TrainConfig(object):
             self.trainer_config.update({'num_group': 5})
         
         if trainer == 'splitfed':
-            #TODO:
+            #TODO: plan for split learning
             pass
         if trainer == 'splitfg':
             #TODO:

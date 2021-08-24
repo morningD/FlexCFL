@@ -2,10 +2,12 @@
 
 The source code of the Arxiv preprint article (FlexCFL):
 
-[Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2010.06870)
+[Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2108.09749)
+> This is the extended journal version of our previous FedGroup conference paper.
 
 # Overview
-FlexCFL is a wholly new reconstruction of our previous CFL framework [FedGroup](https://github.com/morningD/GrouProx).
+🎉FlexCFL is a wholly new reconstruction of our previous CFL framework [FedGroup](https://github.com/morningD/GrouProx).
+
 There are many exciting improvements of FlexCFL:
 - TF2.0 support. (FedGroup uses tensorflow.compat.v1 API)
 - Run faster and reading friendly. (Previous FedGroup is based on FedProx)
@@ -25,10 +27,10 @@ Some technical fixes of FlexCFL:
 
 FlexCFL can simulate following (Clustered) Federated Learning frameworks:
 - FedAvg & FedSGD -> [Communication-Efficient Learning of Deep Networks from Decentralized Data](http://proceedings.mlr.press/v54/mcmahan17a.html)
-- FedGrop & FedGroup-RAC & FedGroup-RCC -> [Efficient Clustered Federated Learning via Decomposed Data-Driven Measure](https://arxiv.org/abs/2010.06870)
+- FedGrop & FedGroup-RAC & FedGroup-RCC -> [FedGroup: Efficient Clustered Federated Learning via Decomposed Data-Driven Measure](https://arxiv.org/abs/2010.06870)
 - IFCA -> [An Efficient Framework for Clustered Federated Learning](https://proceedings.neurips.cc/paper/2020/hash/e32cc80bf07915058ce90722ee17bb71-Abstract.html)
 - FeSEM -> [Multi-center federated learning](https://arxiv.org/abs/2005.01026)
-- FlexCFL & FlexCFL with group aggregation -> [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift]()
+- FlexCFL & FlexCFL with group aggregation -> [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2108.09749)
 
 # Requirement
 Python packages:
@@ -43,17 +45,17 @@ Python packages:
 The directory structure of the datasets should look like this:
 
 ```
-GrouProx-->data-->mnist-->data-->train--> ***train.json
-               |              |->test--> ***test.json
-               |
-               |->femnist-->data-->train--> ***train.json
-               |              |->test--> ***test.json
-               |
-               |->fmnist-->data-->...
-               |
-               |->synthetic_1_1-->data-->...
-               |
-               ...
+FlexCFL-->data-->mnist-->data-->train--> ***train.json
+                |              |->test--> ***test.json
+                |
+                |->femnist-->data-->train--> ***train.json
+                |                  |->test--> ***test.json
+                |
+                |->fmnist-->data-->...
+                |
+                |->synthetic_1_1-->data-->...
+                |
+                ...
 ```
 # Quick Start
 
@@ -64,6 +66,12 @@ The default configurations are defined in `FlexCFL/utils/trainer_utils.py` as `T
 You can modify the configurations by directly modifying the `config` of trainer.
 The commonly used hyperparameters of FlexCFL are:
 ```
+# The dataset name, data file should be stored in floder FLexCFL/data/
+trainer_config['dataset'] = 'femnist'
+
+# The model name, model definition file should be saved in floder FLexCFL/flearn/model/
+trainer_config['model'] = 'mlp'
+
 # Total communication round
 trainer_config['num_rounds'] = 300
 
@@ -104,15 +112,15 @@ All evaluation results will save in the `FlexCFL-->results-->...` directory as `
 # Reference
 Please cite the preprint version of `FlexCFL` if the code helped your research 😊
 
-- [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2010.06870)
+- [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2108.09749)
 
 BibTeX
 ```
-@article{duan2020fedgroup,
-  title={FedGroup: Ternary Cosine Similarity-based Clustered Federated Learning Framework toward High Accuracy in Heterogeneous Data},
-  author={Duan, Moming and Liu, Duo and Ji, Xinyuan and Liu, Renping and Liang, Liang and Chen, Xianzhang and Tan, Yujuan},
-  journal={arXiv preprint arXiv:2010.06870},
-  year={2020}
+@article{duan2021flexible,
+  title={Flexible Clustered Federated Learning for Client-Level Data Distribution Shift},
+  author={Duan, Moming and Liu, Duo and Ji, Xinyuan and Wu, Yu and Liang, Liang and Chen, Xianzhang and Tan, Yujuan},
+  journal={arXiv preprint arXiv:2108.09749},
+  year={2021}
 }
 ```
 

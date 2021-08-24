@@ -63,6 +63,8 @@ Just run `test.ipynb`.
 The `task_list` shows examples of several configurations.
 The default configurations are defined in `FlexCFL/utils/trainer_utils.py` as `TrainConfig`.
 
+![img](https://i.imgur.com/PIJDLJD.jpg)
+
 You can modify the configurations by directly modifying the `config` of trainer.
 The commonly used hyperparameters of FlexCFL are:
 ```
@@ -108,6 +110,8 @@ You can also run FlexCFL with `python main.py`. Please modify `config` according
 
 # Experimental Results
 All evaluation results will save in the `FlexCFL-->results-->...` directory as `excel` format files.
+
+![img](https://i.imgur.com/87NfC3j.jpg)
 
 # Reference
 Please cite the preprint version of `FlexCFL` if the code helped your research 😊

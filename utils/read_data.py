@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tensorflow as tf
 import numpy as np
+import re
 
 def read_fedprox_json(train_data_dir, test_data_dir):
     '''parses data in given train and test data directories
@@ -47,6 +48,46 @@ def read_fedprox_json(train_data_dir, test_data_dir):
     '''
     return clients, train_npdata, test_npdata
 
+def text2embs(dataset_list, emb_file, max_words=20):
+
+    with open(emb_file, 'r') as inf:
+        embs = json.load(inf)
+    id2word = embs['vocab']
+    word2id = {v: k for k,v in enumerate(id2word)}
+    word_emb = np.array(embs['emba'])
+
+    def _line_to_embs(line, w2d, d2e, max_words):
+        word_list = re.findall(r"[\w']+|[.,!?;]", line)
+        pad = int(max_words - len(word_list))
+        pad_index = len(w2d)
+        if pad <= 0:
+            # Clip to max length
+            word_list = word_list[:max_words]
+        embs = []
+        for word in word_list:
+            if word in w2d:
+                embs.append(d2e[w2d[word]])
+            else:
+                embs.append(d2e[pad_index])
+        if pad > 0:
+            # Add padding to the front of emb
+            embs = [d2e[pad_index]]*pad + embs
+        return embs
+
+    new_dataset_list = []
+    for dataset in dataset_list:
+        for c, data in dataset.items():
+            embs_list, labels_list = [], []
+            for post, label in zip(data['x'], data['y']):
+                embs = _line_to_embs(post[4], word2id, word_emb, max_words)
+                embs_list.append(embs)
+                labels_list += [1 if label=='4' else 0]
+            dataset[c]['x'] = embs_list
+            dataset[c]['y'] = labels_list
+        new_dataset_list.append(dataset)
+    return new_dataset_list
+
+
 def read_mnist(train_data_dir, test_data_dir):
     return read_fedprox_json(train_data_dir, test_data_dir)
 
@@ -57,6 +98,9 @@ def read_fmnist(train_data_dir, test_data_dir):
     return read_fedprox_json(train_data_dir, test_data_dir)
 
 def read_synthetic(train_data_dir, test_data_dir):
+    return read_fedprox_json(train_data_dir, test_data_dir)
+
+def read_sent140(train_data_dir, test_data_dir):
     return read_fedprox_json(train_data_dir, test_data_dir)
 
 def read_federated_data(dsname):
@@ -78,7 +122,13 @@ def read_federated_data(dsname):
         clients, train_data, test_data = read_fmnist(train_data_dir, test_data_dir)
     if dsname.startswith('synthetic'):
         clients, train_data, test_data = read_synthetic(train_data_dir, test_data_dir)
-    
+    if dsname == 'sent140':
+        max_words = 25
+        emb_file = Path.joinpath(wspath, 'data', dsname, 'embs.json').absolute()
+        clients, train_data, test_data = read_sent140(train_data_dir, test_data_dir)
+        embs = text2embs([train_data, test_data], emb_file, max_words)
+        train_data, test_data = embs[0], embs[1]
+
     # Convert list to numpy array
     for c in train_data.keys():
         train_data[c]['x'] = np.array(train_data[c]['x'], dtype=np.float32) # shape=(num_samples, num_features)

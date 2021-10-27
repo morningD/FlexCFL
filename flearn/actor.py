@@ -6,6 +6,7 @@ from math import ceil
 Define the base actor of federated learning framework
 like Server, Group, Client.
 '''
+
 class Actor(object):
     def __init__(self, id, actor_type, train_data={'x':[],'y':[]}, test_data={'x':[],'y':[]}, model=None):
         self.id = id

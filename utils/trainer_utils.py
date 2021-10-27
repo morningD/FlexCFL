@@ -73,6 +73,7 @@ class TrainConfig(object):
         if self.trainer_config['dataset'].startswith('mnist'):
             self.client_config.update({'learning_rate': 0.03})
             self.trainer_config.update({'num_group': 3})
+            self.trainer_config.update({'num_rounds': 800})
 
         if self.trainer_config['dataset'] == 'sent140':
             self.client_config.update({'learning_rate': 0.3})

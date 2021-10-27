@@ -226,7 +226,7 @@ class FedAvg(object):
         self.server.train_data['x'] = np.vstack(server_train_data['x'])
         self.server.train_data['y'] = np.hstack(server_train_data['y'])
 
-        self.server.model.summary()
+        #self.server.model.summary()
 
         # 2, Server train locally
         train_size, train_acc, train_loss, _, update = self.server.solve_inner(num_epoch, batch_size)

@@ -45,6 +45,7 @@ class IFCA(GroupBase):
     """ Minimize the Group Loss
     """
     def schedule_clients(self, round, clients, groups):
+        schedule_results = None
         if self.dynamic == True:
             # 1, Redo cold start distribution shift clients
             warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]
@@ -64,10 +65,11 @@ class IFCA(GroupBase):
                         migration_count += 1
                         print(colored(f'Client {client.id} migrate from Group {prev_g.id} \
                             to Group {new_g.id}', 'yellow', attrs=['reverse']))
+            schedule_results = {'shift': shift_count, 'migration': migration_count}
 
         self.clients_cold_start(clients, groups)
 
-        return {'shift': shift_count, 'migration': migration_count}
+        return schedule_results
 
     def clients_cold_start(self, clients, groups):
 

@@ -104,8 +104,10 @@ class ResultWriter(object):
         num_sublink, train_acc, train_loss = train_summary['Total']
         _, test_acc, _ = test_summary['Total']
         discrepancy = diffs['Total']
-        shift, migration = schedule_results['shift'], schedule_results['migration']
-        row = [test_acc, train_acc, train_loss, num_sublink, discrepancy, shift, migration]
+        row = [test_acc, train_acc, train_loss, num_sublink, discrepancy]
+        if self.migration == True and schedule_results is not None:
+            shift, migration = schedule_results['shift'], schedule_results['migration']
+            row += [shift, migration]
         for gid in range(self.num_group):
             if f'G{gid}' in diffs: # The group has sublink clients
                 train_acc, train_loss, _ = train_summary[f'G{gid}']

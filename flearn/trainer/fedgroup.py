@@ -224,7 +224,7 @@ class FedGroup(GroupBase):
         This function will be call before traning.
     '''
     def schedule_clients(self, round, selected_clients, groups):
-        
+        schedule_results = None
         if self.dynamic == True:
             # 1, Redo cold start distribution shift clients
             warm_clients = [wc for wc in self.clients if wc.has_uplink() == True]
@@ -244,6 +244,7 @@ class FedGroup(GroupBase):
                         migration_count += 1
                         print(colored(f'Client {client.id} migrate from Group {prev_g.id} \
                             to Group {new_g.id}', 'yellow', attrs=['reverse']))
+            schedule_results = {'shift': shift_count, 'migration': migration_count}
 
         # 2, Cold start newcomer: pretrain and assign a group
         for client in selected_clients:
@@ -251,7 +252,7 @@ class FedGroup(GroupBase):
             if client.has_uplink() == False:
                 self.client_cold_start(client, self.RAC)
 
-        return {'shift': shift_count, 'migration': migration_count}
+        return schedule_results
 
     ''' Rewrite the schedule group function of GroupBase '''
     def schedule_groups(self, round, clients, groups):

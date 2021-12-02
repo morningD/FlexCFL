@@ -40,7 +40,9 @@ Python packages:
 - matplotlib
 - tqdm
  
- You need to download the dataset (e.g. FEMNIST, MNIST, FashionMNIST, Synthetic) and specify a GPU id follows the guidelines of [Ditto](https://github.com/litian96/ditto).
+ You need to download the dataset (e.g. FEMNIST, MNIST, FashionMNIST, Synthetic) and specify a GPU id follows the guidelines of [FedProx](https://github.com/litian96/FedProx) & [Ditto](https://github.com/litian96/ditto). 
+
+### 📌 Please download `mnist, nist, sent140, synthetic` from the `FedProx` repository and rename nist to fmnist, download `femnist` from the `Ditto` repository. The nist in FedProx is 10-class, but the femnist in Ditto is 62-class. We use the 10-class version in this project.
 
 The directory structure of the datasets should look like this:
 

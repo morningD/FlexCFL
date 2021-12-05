@@ -250,7 +250,7 @@ class Actor(object):
         if isinstance(nodes, list):
             self.uplink = [c for c in self.uplink - nodes if c not in nodes]
         if isinstance(nodes, Actor):
-            self.downlink.remove(nodes)
+            self.uplink.remove(nodes)
         return
 
     def clear_uplink(self):

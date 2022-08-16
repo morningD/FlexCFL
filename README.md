@@ -122,11 +122,15 @@ Please cite the preprint version of `FlexCFL` if the code helped your research ð
 
 BibTeX
 ```
-@article{duan2021flexible,
+@article{duan2022flexible,
   title={Flexible Clustered Federated Learning for Client-Level Data Distribution Shift},
-  author={Duan, Moming and Liu, Duo and Ji, Xinyuan and Wu, Yu and Liang, Liang and Chen, Xianzhang and Tan, Yujuan},
-  journal={arXiv preprint arXiv:2108.09749},
-  year={2021}
+  author={Duan, Moming and Liu, Duo and Ji, Xinyuan and Wu, Yu and Liang, Liang and Chen, Xianzhang and Tan, Yujuan and Ren, Ao},
+  journal={IEEE Transactions on Parallel \& Distributed Systems},
+  volume={33},
+  number={11},
+  pages={2661--2674},
+  year={2022},
+  publisher={IEEE Computer Society}
 }
 ```
 

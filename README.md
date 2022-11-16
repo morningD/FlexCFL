@@ -116,7 +116,7 @@ All evaluation results will save in the `FlexCFL-->results-->...` directory as `
 ![img](https://i.imgur.com/87NfC3j.jpg)
 
 # Reference
-Please cite the preprint version of `FlexCFL` if the code helped your research 😊
+Please cite the paper of `FlexCFL` if the code helped your research 😊
 
 - [Flexible Clustered Federated Learning for Client-Level Data Distribution Shift](https://arxiv.org/abs/2108.09749)
 

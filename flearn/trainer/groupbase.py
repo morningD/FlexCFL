@@ -28,6 +28,8 @@ class GroupBase(object):
         self.group_config = train_config.group_config
         if self.eval_locally == True:
             self.group_config.update({'eval_locally': True})
+        else:
+            self.group_config.update({'eval_locally': False})
 
         # Set the random set
         tf.random.set_seed(self.seed)

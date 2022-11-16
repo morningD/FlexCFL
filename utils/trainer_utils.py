@@ -17,7 +17,8 @@ class TrainConfig(object):
             'num_rounds': 300,
             'clients_per_round': 20,
             'eval_every': 1,
-            'eval_locally': True,
+            'eval_locally': False,
+            'dynamic': False, # whether migrate clients, no meaning if runing FedAvg
             'swap_p': 0, # Randomly swap two warm clients with probability
             'shift_type': None # {all, part, increment}
         }

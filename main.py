@@ -35,7 +35,7 @@ def main_flexcfl():
     trainer = FedGroup(config)
     trainer.train()
 
-main_fedavg()
+main_flexcfl()
 ''' # Uncomment these codes as you need
 main_fedavg()
 main_fesem()
